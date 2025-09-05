@@ -164,9 +164,10 @@ Thumbs.db
 # Windows
 *.lnk
 
-# Test files (if needed to exclude)
-test_*.py
-*_test.py
+# Configuration files with secrets
+config.json
+**/config.json
+**/Lumos/config.json
 
 # Logs
 *.log

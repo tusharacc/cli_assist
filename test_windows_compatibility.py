@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 from lumos_cli.platform_utils import (
     is_windows, is_macos, is_linux,
     get_config_directory, get_logs_directory, get_cache_directory,
-    find_ollama_executable, get_platform_info
+    check_ollama_installed, get_platform_info
 )
 from lumos_cli.ui import create_header
 from rich.console import Console
@@ -29,9 +29,9 @@ def test_windows_compatibility():
     table.add_column("Property", style="cyan")
     table.add_column("Value", style="yellow")
     
-    table.add_row("Operating System", platform_info["os"])
+    table.add_row("System", platform_info["system"])
     table.add_row("Platform", platform_info["platform"])
-    table.add_row("Architecture", platform_info["arch"])
+    table.add_row("Machine", platform_info["machine"])
     table.add_row("Python Version", platform_info["python_version"])
     table.add_row("Is Windows", str(is_windows()))
     table.add_row("Is macOS", str(is_macos()))
@@ -47,9 +47,9 @@ def test_windows_compatibility():
     
     # Ollama detection
     console.print("\n🦙 Ollama detection:")
-    ollama_path = find_ollama_executable()
-    if ollama_path:
-        console.print(f"✅ Found Ollama: {ollama_path}")
+    ollama_installed = check_ollama_installed()
+    if ollama_installed:
+        console.print("✅ Ollama is installed")
     else:
         console.print("❌ Ollama not found")
     

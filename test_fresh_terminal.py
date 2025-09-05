@@ -10,7 +10,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.config import get_config
+from lumos_cli.config import config
 from lumos_cli.platform_utils import get_config_directory
 from lumos_cli.ui import create_header
 from rich.console import Console
@@ -46,9 +46,10 @@ def test_fresh_terminal():
         
         console.print("🧹 Cleared environment variables")
         
-        # Test configuration loading
-        config = get_config()
-        console.print(f"📊 Fresh config: {config}")
+        # Test configuration loading  
+        console.print(f"📊 Fresh config available backends: {config.get_available_backends()}")
+        console.print(f"📊 Ollama available: {config.is_ollama_available()}")
+        console.print(f"📊 REST configured: {config.is_rest_api_configured()}")
         
         # Restore environment
         for var, value in original_values.items():

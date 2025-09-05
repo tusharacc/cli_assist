@@ -8,7 +8,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.config import load_env_file, get_config
+from lumos_cli.config import load_env_file, config
 from lumos_cli.logger import LumosLogger
 from lumos_cli.ui import create_header
 from rich.console import Console
@@ -28,19 +28,15 @@ def test_new_terminal():
     load_env_file(".env.nonexistent", debug=True)
     
     # Get configuration
-    config = get_config()
-    console.print(f"📊 Configuration loaded: {len(config)} settings")
+    backends = config.get_available_backends()
+    console.print(f"📊 Available backends: {backends}")
     
-    # Show what we have
-    if config:
-        console.print("✅ Global configuration found:")
-        for key, value in config.items():
-            if "key" in key.lower():
-                console.print(f"  {key}: {'***' if value else 'Not set'}")
-            else:
-                console.print(f"  {key}: {value}")
-    else:
-        console.print("❌ No configuration found")
+    # Show current settings
+    console.print("✅ Configuration status:")
+    console.print(f"  Ollama: {'Available' if config.is_ollama_available() else 'Not available'}")
+    console.print(f"  REST API: {'Configured' if config.is_rest_api_configured() else 'Not configured'}")
+    console.print(f"  API URL: {config.get('llm.rest_api_url', 'Not set')}")
+    console.print(f"  API Key: {'Set' if config.get('llm.rest_api_key') else 'Not set'}")
     
     # Show log entries
     console.print("\n📝 Recent log entries:")

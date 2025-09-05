@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from lumos_cli.platform_utils import get_config_directory, get_logs_directory
-from lumos_cli.config import get_config, save_global_config
+from lumos_cli.config import config
 from lumos_cli.ui import create_header
 from rich.console import Console
 from rich.table import Table
@@ -26,28 +26,28 @@ def test_global_config():
     console.print(f"📁 Config Directory: {config_dir}")
     console.print(f"📁 Logs Directory: {logs_dir}")
     
-    # Test saving/loading config
-    test_config = {
-        "rest_api_url": "https://api.openai.com/v1/chat/completions",
-        "rest_api_key": "test-key",
-        "backend": "auto"
+    # Test config access
+    test_settings = {
+        "llm.rest_api_url": "https://api.openai.com/v1/chat/completions",
+        "llm.rest_api_key": "test-key",
+        "llm.default_backend": "auto"
     }
     
-    console.print("💾 Testing config save/load...")
-    save_global_config(test_config)
-    loaded_config = get_config()
+    console.print("💾 Testing config access...")
     
     # Show config table
     table = Table(title="Configuration Test Results")
     table.add_column("Setting", style="cyan")
-    table.add_column("Expected", style="green")
-    table.add_column("Actual", style="yellow")
+    table.add_column("Value", style="yellow")
     table.add_column("Status", style="bold")
     
-    for key, expected in test_config.items():
-        actual = loaded_config.get(key)
-        status = "✅ PASS" if actual == expected else "❌ FAIL"
-        table.add_row(key, str(expected), str(actual), status)
+    for setting in test_settings.keys():
+        actual = config.get(setting)
+        status = "✅ CONFIGURED" if actual else "❌ NOT SET"
+        value = str(actual) if actual else "Not set"
+        if 'key' in setting.lower():
+            value = f"{value[:8]}..." if len(value) > 8 else "***"
+        table.add_row(setting, value, status)
     
     console.print(table)
     return True

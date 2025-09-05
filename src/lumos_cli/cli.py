@@ -978,8 +978,8 @@ def config_show(debug: bool = False):
         debug_table.add_column("Setting", style="bold")
         debug_table.add_column("Value", style="bright_white")
         
-        debug_table.add_row("REST API URL", config.get('llm.rest_api_url') or '[dim]Not set[/dim]')
-        debug_table.add_row("REST API Key", '[green]✓ Set[/green]' if config.get('llm.rest_api_key') else '[red]✗ Not set[/red]')
+        debug_table.add_row("OpenAI API URL", config.get('llm.rest_api_url') or '[dim]Not set[/dim]')
+        debug_table.add_row("OpenAI API Key", '[green]✓ Set[/green]' if config.get('llm.rest_api_key') else '[red]✗ Not set[/red]')
         debug_table.add_row("Ollama URL", config.get('llm.ollama_url', 'http://localhost:11434'))
         debug_table.add_row("Default Backend", config.get('llm.default_backend', 'auto'))
         debug_table.add_row("Embeddings DB", config.get('embeddings.db_path', '.lumos_embeddings.db'))
@@ -1064,15 +1064,15 @@ def debug():
         try:
             router = LLMRouter(backend="rest")
             messages = [{"role": "user", "content": "Say 'Debug test successful'"}]
-            console.print("🚀 Testing REST API connection...")
+            console.print("🚀 Testing OpenAI API connection...")
             
             # Enable debug mode for this test
             response = router._chat_rest(messages, debug=True)
-            console.print(f"✅ REST API Response: {response}")
+            console.print(f"✅ OpenAI API Response: {response}")
         except Exception as e:
-            console.print(f"❌ REST API Error: {str(e)}")
+            console.print(f"❌ OpenAI API Error: {str(e)}")
     else:
-        console.print("⚠️ REST API not configured")
+        console.print("⚠️ OpenAI API not configured")
     
     # Test Ollama if available
     if config.is_ollama_available():
@@ -1148,9 +1148,9 @@ def config_command(
         
         # LLM Settings
         settings = [
-            ("llm.rest_api_url", "REST API URL"),
-            ("llm.rest_api_key", "REST API Key"), 
-            ("llm.rest_model", "REST Model"),
+            ("llm.rest_api_url", "OpenAI API URL"),
+            ("llm.rest_api_key", "OpenAI API Key"), 
+            ("llm.rest_model", "OpenAI Model"),
             ("llm.ollama_url", "Ollama URL"),
             ("llm.ollama_model", "Ollama Model"),
             ("llm.default_backend", "Default Backend")

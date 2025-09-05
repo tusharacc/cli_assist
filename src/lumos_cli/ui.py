@@ -34,16 +34,20 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
         log_debug(f"UI Header: Available backends: {backends}")
         
         ollama_status = "🟢" if "ollama" in backends else "🔴"
-        rest_status = "🟢" if "rest" in backends else "🔴"
+        openai_status = "🟢" if "openai" in backends else "🔴"
+        
+        # Check enterprise status
+        enterprise_status = "🟢" if config.is_enterprise_configured() else "🔴"
         
         log_debug(f"UI Header: Ollama status: {ollama_status}")
-        log_debug(f"UI Header: REST status: {rest_status}")
+        log_debug(f"UI Header: OpenAI status: {openai_status}")
+        log_debug(f"UI Header: Enterprise status: {enterprise_status}")
         
-        # If REST shows red, log detailed config check
-        if rest_status == "🔴":
-            log_debug("UI Header: REST API showing as red, checking detailed config...")
+        # If OpenAI shows red, log detailed config check
+        if openai_status == "🔴":
+            log_debug("UI Header: OpenAI API showing as red, checking detailed config...")
             is_configured = config.is_rest_api_configured(debug=True)
-            log_debug(f"UI Header: REST API configured result: {is_configured}")
+            log_debug(f"UI Header: OpenAI API configured result: {is_configured}")
         
         # Create status table
         status_table = Table(show_header=False, show_lines=False, padding=(0, 1), box=None)
@@ -51,7 +55,8 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
         status_table.add_column()
         
         status_table.add_row("🤖", f"Ollama {ollama_status}")
-        status_table.add_row("🌐", f"REST API {rest_status}")
+        status_table.add_row("🌐", f"OpenAI/GPT {openai_status}")
+        status_table.add_row("🏢", f"Enterprise LLM {enterprise_status}")
         status_table.add_row("📁", f"Repository-aware")
         status_table.add_row("🛡️", f"Safety enabled")
     

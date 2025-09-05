@@ -155,10 +155,10 @@ class LLMRouter:
         """Chat with REST API"""
         if not REST_API_URL or not REST_API_KEY:
             if debug:
-                print(f"❌ REST API Configuration Error:")
+                print(f"❌ OpenAI API Configuration Error:")
                 print(f"   URL: {REST_API_URL or 'Not set'}")
                 print(f"   Key: {'sk-...' + REST_API_KEY[-10:] if REST_API_KEY and len(REST_API_KEY) > 10 else 'Not set'}")
-            raise ValueError("REST API URL and key must be configured")
+            raise ValueError("OpenAI API URL and key must be configured")
             
         headers = {
             "Authorization": f"Bearer {REST_API_KEY}",

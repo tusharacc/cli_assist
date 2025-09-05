@@ -343,12 +343,12 @@ class LumosConfig:
             return False
     
     def is_rest_api_configured(self, debug: bool = False) -> bool:
-        """Check if REST API is properly configured"""
+        """Check if OpenAI API is properly configured"""
         url = self.get('llm.rest_api_url')
         key = self.get('llm.rest_api_key')
         
         if debug:
-            print(f"🔍 REST API Configuration Check:")
+            print(f"🔍 OpenAI API Configuration Check:")
             print(f"   URL: {url or 'Not set'}")
             print(f"   Key: {'sk-...' + key[-10:] if key and len(key) > 10 else 'Not set'}")
             print(f"   Configured: {bool(url and key)}")
@@ -393,16 +393,16 @@ class LumosConfig:
         if ollama_available:
             backends.append('ollama')
             
-        # Check REST API (OpenAI, etc.)
+        # Check OpenAI API (REST endpoint)
         rest_configured = self.is_rest_api_configured()
-        log_debug(f"Config: REST API configured: {rest_configured}")
+        log_debug(f"Config: OpenAI API configured: {rest_configured}")
         if rest_configured:
             backends.append('openai')  # More specific name
         else:
-            # Log detailed info when REST is not configured
+            # Log detailed info when OpenAI is not configured
             url = self.get('llm.rest_api_url')
             key = self.get('llm.rest_api_key')
-            log_debug(f"Config: REST API details - URL: {url or 'None'}, Key: {'Present' if key else 'None'}")
+            log_debug(f"Config: OpenAI API details - URL: {url or 'None'}, Key: {'Present' if key else 'None'}")
         
         # Check Enterprise LLM
         enterprise_configured = self.is_enterprise_configured()
@@ -438,22 +438,22 @@ def setup_wizard():
     rest_configured = config.is_rest_api_configured()
     
     console.print(f"{'✅' if ollama_available else '❌'} Ollama (local): {'Available' if ollama_available else 'Not available'}")
-    console.print(f"{'✅' if rest_configured else '❌'} REST API: {'Configured' if rest_configured else 'Not configured'}")
+    console.print(f"{'✅' if rest_configured else '❌'} OpenAI API: {'Configured' if rest_configured else 'Not configured'}")
     
     if not ollama_available and not rest_configured:
         console.print("\n[yellow]⚠️ No LLM backends are available![/yellow]")
         console.print("\n[bold]Options:[/bold]")
         console.print("1. Install Ollama: https://ollama.ai")
-        console.print("2. Configure REST API (OpenAI, Anthropic, etc.)")
+        console.print("2. Configure OpenAI API (or other compatible REST API)")
         
-        if Confirm.ask("\nConfigure REST API now?", default=True):
-            api_url = Prompt.ask("API URL")
+        if Confirm.ask("\nConfigure OpenAI API now?", default=True):
+            api_url = Prompt.ask("API URL", default="https://api.openai.com/v1/chat/completions")
             api_key = Prompt.ask("API Key", password=True)
             
             config.set('llm.rest_api_url', api_url)
             config.set('llm.rest_api_key', api_key)
             
-            console.print("[green]✅ REST API configured![/green]")
+            console.print("[green]✅ OpenAI API configured![/green]")
     
     # Setup complete
     console.print("\n[green]🎉 Setup complete! You can now use Lumos CLI.[/green]")

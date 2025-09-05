@@ -194,11 +194,24 @@ class LumosConfig:
         config = {
             # LLM Settings - prioritize global config, then env vars, then defaults
             'llm': {
+                # OpenAI/Standard REST API
                 'rest_api_url': None,
                 'rest_api_key': None,
                 'rest_model': "gpt-3.5-turbo",
+                
+                # Enterprise LLM Settings
+                'enterprise_token_url': None,
+                'enterprise_chat_url': None, 
+                'enterprise_app_id': None,
+                'enterprise_app_key': None,
+                'enterprise_app_resource': None,
+                'enterprise_model': "enterprise-default",
+                
+                # Local Ollama
                 'ollama_url': get_default_ollama_url(),
                 'ollama_model': "devstral",
+                
+                # Backend selection: auto, openai, enterprise, ollama
                 'default_backend': "auto"
             },
             
@@ -238,11 +251,24 @@ class LumosConfig:
         # Then overlay environment variables (medium priority)
         env_overrides = {
             'llm': {
+                # OpenAI/Standard REST API
                 'rest_api_url': os.getenv("LLM_API_URL"),
                 'rest_api_key': os.getenv("LLM_API_KEY"), 
                 'rest_model': os.getenv("LLM_REST_MODEL"),
+                
+                # Enterprise LLM Settings
+                'enterprise_token_url': os.getenv("ENTERPRISE_TOKEN_URL"),
+                'enterprise_chat_url': os.getenv("ENTERPRISE_CHAT_URL"),
+                'enterprise_app_id': os.getenv("ENTERPRISE_APP_ID"),
+                'enterprise_app_key': os.getenv("ENTERPRISE_APP_KEY"),
+                'enterprise_app_resource': os.getenv("ENTERPRISE_APP_RESOURCE"),
+                'enterprise_model': os.getenv("ENTERPRISE_MODEL"),
+                
+                # Local Ollama  
                 'ollama_url': os.getenv("OLLAMA_URL"),
                 'ollama_model': os.getenv("OLLAMA_MODEL"),
+                
+                # Backend selection
                 'default_backend': os.getenv("LUMOS_BACKEND")
             }
         }
@@ -329,6 +355,32 @@ class LumosConfig:
         
         return bool(url and key)
     
+    def is_enterprise_configured(self, debug: bool = False) -> bool:
+        """Check if Enterprise LLM is properly configured"""
+        required_fields = [
+            'llm.enterprise_token_url',
+            'llm.enterprise_chat_url', 
+            'llm.enterprise_app_id',
+            'llm.enterprise_app_key',
+            'llm.enterprise_app_resource'
+        ]
+        
+        config_values = {field: self.get(field) for field in required_fields}
+        configured = all(config_values.values())
+        
+        if debug:
+            print(f"🔍 Enterprise LLM Configuration Check:")
+            for field, value in config_values.items():
+                field_name = field.replace('llm.enterprise_', '').upper()
+                if 'key' in field.lower():
+                    display_value = f"{value[:8]}..." if value and len(value) > 8 else 'Not set'
+                else:
+                    display_value = value or 'Not set'
+                print(f"   {field_name}: {display_value}")
+            print(f"   Configured: {configured}")
+        
+        return configured
+    
     def get_available_backends(self) -> list:
         """Get list of available backends"""
         from .logger import log_debug
@@ -341,15 +393,22 @@ class LumosConfig:
         if ollama_available:
             backends.append('ollama')
             
+        # Check REST API (OpenAI, etc.)
         rest_configured = self.is_rest_api_configured()
         log_debug(f"Config: REST API configured: {rest_configured}")
         if rest_configured:
-            backends.append('rest')
+            backends.append('openai')  # More specific name
         else:
             # Log detailed info when REST is not configured
             url = self.get('llm.rest_api_url')
             key = self.get('llm.rest_api_key')
             log_debug(f"Config: REST API details - URL: {url or 'None'}, Key: {'Present' if key else 'None'}")
+        
+        # Check Enterprise LLM
+        enterprise_configured = self.is_enterprise_configured()
+        log_debug(f"Config: Enterprise LLM configured: {enterprise_configured}")
+        if enterprise_configured:
+            backends.append('enterprise')
             
         log_debug(f"Config: Final available backends: {backends}")
         return backends

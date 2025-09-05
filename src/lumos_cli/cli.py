@@ -940,9 +940,13 @@ def config_show(debug: bool = False):
             "status": "available" if "ollama" in available_backends else "missing",
             "details": f"Local AI model - {config.get('llm.ollama_url', 'http://localhost:11434')}"
         },
-        "🌐 REST API": {
-            "status": "configured" if "rest" in available_backends else "missing", 
-            "details": f"Remote API - {config.get('llm.rest_api_url', 'Not configured')}"
+        "🌐 OpenAI API": {
+            "status": "configured" if "openai" in available_backends else "missing", 
+            "details": f"External API - {config.get('llm.rest_api_url', 'Not configured')}"
+        },
+        "🏢 Enterprise LLM": {
+            "status": "configured" if "enterprise" in available_backends else "missing",
+            "details": f"Corporate API - {config.get('llm.enterprise_chat_url', 'Not configured')}"
         },
         "🧠 Smart Discovery": {
             "status": "available" if config.get('features.smart_file_discovery') else "missing",

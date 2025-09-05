@@ -6,7 +6,8 @@ A smart CLI-based LLM code assistant that brings the power of AI to your command
 
 ### Smart Model Routing
 - **Automatic task detection** - Analyzes your requests to choose the best model
-- **Multi-backend support** - Works with REST APIs and local Ollama
+- **Multi-backend support** - Works with OpenAI, Enterprise LLMs, and local Ollama
+- **Enterprise-ready** - Custom authentication flow for corporate environments
 - **Optimized performance** - Fast local models for code tasks, powerful remote models for planning
 
 ### Safety & Preview System  
@@ -50,9 +51,19 @@ pip install -e .
 Set up your environment variables:
 
 ```bash
-# For REST API backend
-export LLM_API_URL="https://api.your-provider.com/chat/completions"
+# For OpenAI/External API (Personal Use)
+export LLM_API_URL="https://api.openai.com/v1/chat/completions"
 export LLM_API_KEY="your-api-key"
+
+# For Enterprise LLM (Corporate Environment)
+export ENTERPRISE_TOKEN_URL="https://your-enterprise.com/api/auth/token"
+export ENTERPRISE_CHAT_URL="https://your-enterprise.com/api/chat/completions"
+export ENTERPRISE_APP_ID="your-app-id"
+export ENTERPRISE_APP_KEY="your-app-key"
+export ENTERPRISE_APP_RESOURCE="your-resource"
+
+# Backend selection (auto, openai, enterprise, ollama)
+export LUMOS_BACKEND="auto"
 
 # Embedding database location (optional)
 export LLM_EMBED_DB=".lumos_embeddings.db"
@@ -194,8 +205,41 @@ Lumos automatically chooses the best model for each task:
 | Code Generation | Local (Devstral) | Fast, excellent at code |
 | Code Review | Local (Devstral) | Quick feedback loops |
 | Debugging | Local (Devstral) | Immediate assistance |
-| Planning | REST API | High-level reasoning |
-| Architecture | REST API | Complex explanations |
+| Planning | Enterprise/OpenAI | High-level reasoning |
+| Architecture | Enterprise/OpenAI | Complex explanations |
+
+## 🏢 Enterprise LLM Support
+
+Lumos CLI supports enterprise LLM deployments with custom authentication:
+
+### **Enterprise Configuration**
+```bash
+# Required enterprise variables
+ENTERPRISE_TOKEN_URL=https://your-corp.com/api/auth/token
+ENTERPRISE_CHAT_URL=https://your-corp.com/api/chat/completions  
+ENTERPRISE_APP_ID=your-app-identifier
+ENTERPRISE_APP_KEY=your-app-secret
+ENTERPRISE_APP_RESOURCE=your-resource-id
+
+# Force enterprise backend
+LUMOS_BACKEND=enterprise
+```
+
+### **Enterprise Features**
+- **🔐 Token-based Authentication** - Automatic bearer token management
+- **🏢 Corporate API Integration** - Works with any enterprise LLM endpoint
+- **🔄 Auto Token Refresh** - Handles token expiration transparently  
+- **🛡️ Secure Credential Handling** - No hardcoded secrets
+- **📋 Dual Configuration** - Personal laptop + enterprise deployment
+
+### **Testing Enterprise Setup**
+```bash
+# Test enterprise configuration
+python test_enterprise_llm.py
+
+# Check configuration status
+lumos-cli config-show
+```
 
 ## 🔒 Safety Features
 

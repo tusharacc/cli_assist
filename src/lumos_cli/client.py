@@ -1,5 +1,5 @@
 import httpx, os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from enum import Enum
 from .platform_utils import check_ollama_installed
 
@@ -26,20 +26,46 @@ class TaskType(Enum):
     EXPLANATION = "explanation"
 
 class LLMRouter:
-    def __init__(self, backend: str = "auto", devstral_model: str = None, rest_model: str = None):
+    def __init__(self, backend: str = "auto", devstral_model: str = None, rest_model: str = None, enterprise_model: str = None):
         self.backend = backend
         self.devstral_model = devstral_model or config.get('llm.ollama_model', 'devstral')
         self.rest_model = rest_model or config.get('llm.rest_model', 'gpt-3.5-turbo')
+        self.enterprise_model = enterprise_model or config.get('llm.enterprise_model', 'enterprise-default')
+        
+        # Initialize enterprise provider if configured
+        self.enterprise_provider = None
+        if config.is_enterprise_configured():
+            try:
+                from .enterprise_llm import EnterpriseLLMProvider
+                enterprise_config = {
+                    'token_url': config.get('llm.enterprise_token_url'),
+                    'chat_url': config.get('llm.enterprise_chat_url'),
+                    'app_id': config.get('llm.enterprise_app_id'),
+                    'app_key': config.get('llm.enterprise_app_key'),
+                    'app_resource': config.get('llm.enterprise_app_resource')
+                }
+                self.enterprise_provider = EnterpriseLLMProvider(enterprise_config)
+            except Exception as e:
+                print(f"⚠️ Enterprise LLM provider initialization failed: {e}")
         
         # Define which tasks work best with which model
+        # Priority: enterprise (if available) > ollama > openai
+        available_backends = config.get_available_backends()
+        
+        # Smart routing based on available backends
+        primary_backend = "ollama" if "ollama" in available_backends else (
+            "enterprise" if "enterprise" in available_backends else "openai"
+        )
+        secondary_backend = "enterprise" if "enterprise" in available_backends else "openai"
+        
         self.task_routing = {
-            TaskType.CODE_GENERATION: "ollama",    # Fast, good at code
-            TaskType.CODE_ANALYSIS: "ollama",      # Local analysis
-            TaskType.CODE_REVIEW: "ollama",        # Fast feedback
-            TaskType.REFACTORING: "ollama",        # Code transformation
-            TaskType.DEBUGGING: "ollama",          # Quick fixes
-            TaskType.PLANNING: "rest",             # High-level reasoning
-            TaskType.EXPLANATION: "rest",          # Complex explanations
+            TaskType.CODE_GENERATION: primary_backend,     # Fast, good at code
+            TaskType.CODE_ANALYSIS: primary_backend,       # Local analysis
+            TaskType.CODE_REVIEW: primary_backend,         # Fast feedback
+            TaskType.REFACTORING: primary_backend,         # Code transformation
+            TaskType.DEBUGGING: primary_backend,           # Quick fixes
+            TaskType.PLANNING: secondary_backend,          # High-level reasoning
+            TaskType.EXPLANATION: secondary_backend,       # Complex explanations
         }
 
     def _detect_task_type(self, messages: List[Dict[str, Any]]) -> TaskType:
@@ -68,8 +94,9 @@ class LLMRouter:
     def _choose_backend(self, task_type: TaskType) -> str:
         """Choose the best backend for the task type"""
         if self.backend != "auto":
-            return self.backend
-        return self.task_routing.get(task_type, "rest")
+            # Map 'rest' to 'openai' for backward compatibility
+            return "openai" if self.backend == "rest" else self.backend
+        return self.task_routing.get(task_type, "openai")
 
     def chat(self, messages: List[Dict[str, Any]], task_type: TaskType = None):
         if task_type is None:
@@ -78,26 +105,38 @@ class LLMRouter:
         chosen_backend = self._choose_backend(task_type)
         
         # Try chosen backend first, fallback if it fails
+        available_backends = config.get_available_backends()
+        
         try:
-            if chosen_backend == "rest":
+            if chosen_backend == "openai":
                 return self._chat_rest(messages)
             elif chosen_backend == "ollama":
                 return self._chat_ollama(messages)
+            elif chosen_backend == "enterprise":
+                return self._chat_enterprise(messages)
         except Exception as e:
-            # Fallback to other backend if available
-            fallback = "ollama" if chosen_backend == "rest" else "rest"
-            try:
-                if fallback == "rest" and REST_API_URL and REST_API_KEY:
-                    return self._chat_rest(messages)
-                elif fallback == "ollama":
-                    return self._chat_ollama(messages)
-            except Exception:
-                pass  # Both failed
+            # Fallback to other available backend
+            for fallback in available_backends:
+                if fallback != chosen_backend:
+                    try:
+                        if fallback == "openai":
+                            return self._chat_rest(messages)
+                        elif fallback == "ollama":
+                            return self._chat_ollama(messages)
+                        elif fallback == "enterprise":
+                            return self._chat_enterprise(messages)
+                    except Exception:
+                        continue  # Try next backend
             
-            # If all else fails, return helpful error message
-            return f"Unable to connect to LLM backend. Please check your configuration:\n" \
-                   f"- Ollama: {'✅' if self._check_ollama() else '❌ Not available'}\n" \
-                   f"- REST API: {'✅' if REST_API_URL and REST_API_KEY else '❌ Not configured'}\n\n" \
+            # If all backends failed, return helpful error message
+            ollama_status = '✅' if 'ollama' in available_backends else '❌ Not available'
+            openai_status = '✅' if 'openai' in available_backends else '❌ Not configured'
+            enterprise_status = '✅' if 'enterprise' in available_backends else '❌ Not configured'
+            
+            return f"Unable to connect to any LLM backend. Please check your configuration:\n" \
+                   f"- Ollama: {ollama_status}\n" \
+                   f"- OpenAI/REST API: {openai_status}\n" \
+                   f"- Enterprise LLM: {enterprise_status}\n\n" \
                    f"Run 'lumos-cli setup' to configure backends.\n" \
                    f"Original error: {str(e)}"
         
@@ -181,6 +220,13 @@ class LLMRouter:
                 print(f"   ❌ Unexpected Error: {e}")
             raise ValueError(f"REST API unexpected error: {e}")
 
+    def _chat_enterprise(self, messages: List[Dict[str, Any]], debug: bool = False) -> str:
+        """Chat with Enterprise LLM"""
+        if not self.enterprise_provider:
+            raise ValueError("Enterprise LLM provider not initialized")
+        
+        return self.enterprise_provider.chat(messages, self.enterprise_model, debug=debug)
+    
     def _chat_ollama(self, messages: List[Dict[str, Any]]) -> str:
         """Chat with Ollama (Devstral)"""
         with httpx.Client(timeout=120.0) as client:

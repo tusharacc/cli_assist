@@ -1408,13 +1408,19 @@ def _detect_command_intent(user_input: str) -> dict:
         r'^(npm|python|node|flask)\s+.*'
     ]
     
-    # Error/Fix patterns
+    # Error/Fix patterns - enhanced to catch more debugging requests
     fix_patterns = [
         r'^(fix|debug|solve|resolve)\s+(.+)',
         r'^(error|exception|traceback|failed).*',
         r'.*not working.*',
         r'.*broken.*',
-        r'.*(error|exception).*'
+        r'.*(error|exception).*',
+        r'^(why|what).*(wrong|issue|problem|error).*',
+        r'^(help|assistance).*(bug|issue|problem|error|debug).*',
+        r'.*(bug|issue|problem).*(in|with|on).*',
+        r'^(there is|i have|having).*(issue|problem|error|bug).*',
+        r'.*(doesnt work|doesn\'t work|not functioning|failing).*',
+        r'^(my|the).*(app|code|program|function).*(bug|issue|problem|error|broken|not working).*'
     ]
     
     import re
@@ -1543,6 +1549,44 @@ def _interactive_start(instruction: str):
     except Exception as e:
         console.print(f"[red]Start error: {e}[/red]")
 
+def _is_debugging_request(user_input: str) -> bool:
+    """Detect if user input is describing a bug or asking for debugging help"""
+    lower_input = user_input.lower()
+    
+    # Bug/error keywords
+    bug_keywords = [
+        'bug', 'error', 'issue', 'problem', 'broken', 'not working', 'failing',
+        'exception', 'crash', 'traceback', 'fix', 'debug', 'solve', 'resolve',
+        'wrong', 'incorrect', 'unexpected', 'doesnt work', "doesn't work",
+        'fails', 'failed', 'failure', 'broken', 'stuck', 'cant', "can't",
+        'unable to', 'trouble', 'troubleshoot', 'help me', 'whats wrong', "what's wrong",
+        'cannot', 'wont', "won't", 'refused', 'denied', 'timeout', 'connection',
+        'disconnect', 'unresponsive', 'slow', 'hang', 'freeze'
+    ]
+    
+    # Check if input contains bug-related keywords
+    for keyword in bug_keywords:
+        if keyword in lower_input:
+            return True
+    
+    # Check for question patterns about issues
+    question_patterns = [
+        'why is', 'why does', 'why doesnt', "why doesn't", 'why wont', "why won't",
+        'how to fix', 'how do i fix', 'what is wrong', 'whats wrong with',
+        'help with', 'having trouble', 'having issues'
+    ]
+    
+    for pattern in question_patterns:
+        if pattern in lower_input:
+            return True
+    
+    # Check for file extension mentions (likely code-related)
+    import re
+    if re.search(r'\.\w{2,4}\b', user_input):  # Matches file extensions like .py, .js, etc.
+        return True
+    
+    return False
+
 def _interactive_fix(instruction: str):
     """Handle fix command in interactive mode"""
     try:
@@ -1551,13 +1595,70 @@ def _interactive_fix(instruction: str):
         console.print(f"[red]Fix error: {e}[/red]")
 
 def _interactive_chat(user_input: str, router, db, history, persona, context):
-    """Handle general chat in interactive mode"""
+    """Handle general chat in interactive mode with smart file discovery"""
     try:
-        # Search for relevant context
-        ctx = db.search(user_input, top_k=3)
-        snippets = "\n\n".join(c for _,c,_ in ctx)
+        # Check if this looks like a bug/issue description that needs file analysis
+        is_debugging_request = _is_debugging_request(user_input)
         
-        user_content = f"""{user_input}
+        if is_debugging_request:
+            console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")
+            
+            # Use smart file discovery to find relevant files
+            from .file_discovery import SmartFileDiscovery
+            discovery = SmartFileDiscovery(".", console)
+            
+            # Get suggested files based on the user's description
+            suggested_files = discovery.discover_files(user_input)
+            
+            if suggested_files:
+                console.print(f"[dim]📂 Found {len(suggested_files)} potentially relevant files[/dim]")
+                
+                # Read the most relevant files automatically
+                file_contents = {}
+                for file_candidate in suggested_files[:3]:  # Top 3 files
+                    try:
+                        with open(file_candidate.path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                            file_contents[file_candidate.path] = content
+                            console.print(f"[dim]📖 Analyzed: {file_candidate.path} (score: {file_candidate.score:.1f})[/dim]")
+                    except Exception as e:
+                        console.print(f"[dim]⚠️ Could not read {file_candidate.path}: {e}[/dim]")
+                
+                # Build comprehensive context with file contents
+                if file_contents:
+                    file_context = ""
+                    for file_path, content in file_contents.items():
+                        file_context += f"\n\n=== {file_path} ===\n{content}"
+                    
+                    user_content = f"""{user_input}
+
+RELEVANT FILES FOUND AND ANALYZED:
+{file_context}
+
+Please analyze the code above and provide a solution for the described issue."""
+                else:
+                    # Fallback to embedding search
+                    ctx = db.search(user_input, top_k=3)
+                    snippets = "\n\n".join(c for _,c,_ in ctx)
+                    user_content = f"""{user_input}
+        
+RELATED CODE (from embeddings):
+{snippets}"""
+            else:
+                console.print("[dim]📂 No specific files identified, using general code search...[/dim]")
+                # Fallback to embedding search
+                ctx = db.search(user_input, top_k=3)
+                snippets = "\n\n".join(c for _,c,_ in ctx)
+                user_content = f"""{user_input}
+        
+RELATED CODE:
+{snippets}"""
+        else:
+            # Regular chat - use embedding search
+            ctx = db.search(user_input, top_k=3)
+            snippets = "\n\n".join(c for _,c,_ in ctx)
+            
+            user_content = f"""{user_input}
         
 RELATED CODE:
 {snippets}

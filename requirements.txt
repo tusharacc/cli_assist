@@ -3,3 +3,4 @@ typer>=0.9.0
 rich>=13.7.0
 sqlite-utils>=3.36
 numpy>=1.26
+requests>=2.31.0

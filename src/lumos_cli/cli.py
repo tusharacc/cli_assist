@@ -16,6 +16,7 @@ from .error_handler import RuntimeErrorHandler, smart_start_app
 from .config import config, setup_wizard
 from .ui import create_header, create_welcome_panel, create_command_help_panel, create_status_panel, create_config_panel, print_brand_footer
 from .shell_executor import execute_shell_command
+from .github_client import GitHubClient
 import re
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
@@ -88,9 +89,9 @@ def plan(goal: str, backend: str = "auto", model: str = "devstral"):
     console.print(resp)
 
 @app.command()
-def edit(instruction: str, path: str = None, backend: str = "auto", model: str = "devstral", 
+def edit(instruction: str, path: str = None, backend: str = "openai", model: str = "gpt-3.5-turbo", 
          preview: bool = True, force: bool = False):
-    """Edit file(s) with AI assistance and smart file discovery"""
+    """Edit file(s) with AI assistance and smart file discovery (uses OpenAI for best results)"""
     router = LLMRouter(backend, model)
     db = EmbeddingDB()
     editor = SafeFileEditor()
@@ -129,27 +130,58 @@ def edit(instruction: str, path: str = None, backend: str = "auto", model: str =
             contents = ""
             console.print(f"[yellow]File {file_path} not found, will create new file[/yellow]")
         
+        # Get relevant snippets but filter out irrelevant content
         ctx = db.search(instruction, top_k=3)
-        snippets = "\n\n".join(c for _,c,_ in ctx)
+        filtered_snippets = []
+        for _, content, _ in ctx:
+            # Filter out content that's not relevant to the edit instruction
+            if not any(keyword in content.lower() for keyword in ['repositoryanalyzer', 'class ', 'def ', 'import ']):
+                filtered_snippets.append(content)
+            elif any(keyword in instruction.lower() for keyword in ['class', 'function', 'import', 'module']):
+                filtered_snippets.append(content)
         
-        user_content = f"""FILE PATH: {file_path}
-CURRENT CONTENTS:
-<<<
-{contents}
->>>
-INSTRUCTION:
-{instruction}
+        snippets = "\n\n".join(filtered_snippets[:2])  # Limit to 2 most relevant snippets
+        
+        user_content = f"""FILE: {file_path}
 
-RELATED SNIPPETS:
-{snippets}
-"""
+CURRENT CODE:
+{contents}
+
+INSTRUCTION: {instruction}
+
+Return only the complete updated file content."""
         
-        # Add to history
-        history.add_message("user", user_content, command="edit", file_path=file_path)
-        
-        # Get conversation context and enhance with persona
-        conversation_history = history.get_recent_context(max_tokens=4000)
-        enhanced_messages = persona.get_enhanced_messages(conversation_history, context, "edit")
+        # For edit operations, use a simplified, focused prompt
+        # to avoid overwhelming the LLM with too much context
+        system_prompt = """You are a code editor. Your job is to modify the given file according to the user's instruction.
+
+CRITICAL RULES:
+1. Return ONLY the complete file content as it should be written to the file
+2. Do NOT include markdown code blocks (```python, ```, etc.)
+3. Do NOT include explanations or comments about the changes
+4. Do NOT add extra classes, functions, or code that wasn't requested
+5. Keep the changes minimal and focused on the specific instruction
+6. Return only the raw file content that can be directly written to the file
+
+EXAMPLE:
+If the file contains:
+def hello():
+    return "world"
+
+And the instruction is "add error handling", return:
+def hello():
+    try:
+        return "world"
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+NOT a whole new file with extra classes and imports."""
+
+        enhanced_messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_content}
+        ]
         
         # Auto-detect task type from instruction and get response
         resp = router.chat(enhanced_messages)
@@ -187,8 +219,8 @@ def index(path: str = "."):
                     console.print(f"Indexed {full}")
 
 @app.command()
-def review(path: str, backend: str = "auto", model: str = "devstral"):
-    """Review code for bugs, improvements, and best practices"""
+def review(path: str, backend: str = "openai", model: str = "gpt-3.5-turbo"):
+    """Review code for bugs, improvements, and best practices (uses OpenAI for best results)"""
     router = LLMRouter(backend, model)
     db = EmbeddingDB()
     history = get_history_manager()
@@ -1201,7 +1233,7 @@ def debug():
     else:
         console.print("⚠️ Ollama not available")
     
-    console.print("\n[bright_green]✅ Debug information complete![/green]")
+    console.print("\n[bright_green]✅ Debug information complete![/bright_green]")
     console.print("[dim]Tip: If you see issues above, run 'lumos-cli setup' to reconfigure[/dim]")
     console.print("[dim]Logs: Run 'lumos-cli logs' to see detailed log files[/dim]")
 
@@ -1352,9 +1384,9 @@ def platform_info():
     
     if info["is_windows"] == "True":
         console.print(f"\n[yellow]🪟 Windows-Specific Notes:[/yellow]")
-        console.print("• Config stored in: %APPDATA%\Lumos")
-        console.print("• Logs stored in: %LOCALAPPDATA%\Lumos\Logs") 
-        console.print("• Ollama typically installed in: Program Files\Ollama")
+        console.print(r"• Config stored in: %APPDATA%\Lumos")
+        console.print(r"• Logs stored in: %LOCALAPPDATA%\Lumos\Logs") 
+        console.print(r"• Ollama typically installed in: Program Files\Ollama")
         console.print("• Use PowerShell or Command Prompt to run lumos-cli")
         
         console.print(f"\n[dim]Ollama search locations:[/dim]")
@@ -1506,6 +1538,7 @@ def jira(
         console.print("[red]Invalid action. Use: config, search, browse, or comment[/red]")
         console.print("Run 'lumos-cli jira --help' for examples")
 
+@app.command()
 def interactive_mode():
     """Enhanced interactive mode with command detection"""
     router = LLMRouter("auto", "devstral")
@@ -1591,7 +1624,9 @@ def interactive_mode():
             # Smart command detection in natural language
             detected_command = _detect_command_intent(user_input)
             
-            if detected_command['type'] == 'jira':
+            if detected_command['type'] == 'github':
+                _interactive_github(detected_command['query'])
+            elif detected_command['type'] == 'jira':
                 _interactive_jira(detected_command['query'])
             elif detected_command['type'] == 'edit':
                 _interactive_edit(detected_command['instruction'], detected_command.get('file'))
@@ -1619,6 +1654,29 @@ def _detect_command_intent(user_input: str) -> dict:
     """Detect command intent from natural language"""
     lower_input = user_input.lower()
     
+    # GitHub patterns (high priority)
+    github_patterns = [
+        r'(github|git hub)\s+(.+)',
+        r'(clone|pull|fetch)\s+(.+)',
+        r'(pr|pull request|pullrequest)\s+(.+)',
+        r'(repository|repo)\s+(.+)',
+        r'(branch|commit|push|merge)\s+(.+)',
+        r'(tusharacc|scimarketplace|microsoft|github\.com)\s+(.+)',
+        r'(.+)/(.+)\s+(pr|pull request|clone|branch)',
+        r'(check|show|list|get)\s+(pr|pull request|repository|repo)\s+(.+)',
+        r'(is there|are there|any)\s+(pr|pull request)\s+(.+)',
+        r'(latest|recent)\s+(commit|pr|pull request)\s+(.+)'
+    ]
+    
+    for pattern in github_patterns:
+        match = re.search(pattern, lower_input)
+        if match:
+            return {
+                'type': 'github',
+                'query': user_input,
+                'confidence': 0.9
+            }
+
     # JIRA patterns (high priority)
     jira_ticket_pattern = r'\b([A-Z]+-\d+)\b'
     if re.search(jira_ticket_pattern, user_input, re.IGNORECASE):
@@ -1798,11 +1856,87 @@ def _show_interactive_help():
   "how do I implement JWT?"         → Planning assistance
   "get me jira PROJ-123"           → Fetch JIRA ticket details
   "show ALPHA-456"                 → Display ticket info & comments
+  "github tusharacc/cli_assist"    → List PRs for repository
+  "check PRs for scimarketplace/externaldata --branch RC1" → Check branch PRs
+  "clone microsoft/vscode"         → Clone repository
+  "is there a PR raised for tusharacc/cli_assist" → Check for PRs
 
 [bold]General:[/bold]
   Just ask questions naturally - I'll understand the intent!
   Use /exit or Ctrl+C to quit
 """)
+
+def _interactive_github(query: str):
+    """Handle GitHub commands in interactive mode"""
+    try:
+        # Parse the GitHub query to determine action
+        lower_query = query.lower()
+        
+        # Extract organization and repository from common patterns
+        org_repo = None
+        
+        # Pattern 1: "tusharacc/cli_assist" or "scimarketplace/externaldata"
+        org_repo_pattern = r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)'
+        match = re.search(org_repo_pattern, query)
+        if match:
+            org_repo = f"{match.group(1)}/{match.group(2)}"
+        
+        # Pattern 2: "github tusharacc cli_assist" or "repository scimarketplace externaldata"
+        words = query.split()
+        if len(words) >= 3:
+            for i, word in enumerate(words):
+                if word.lower() in ['github', 'repository', 'repo'] and i + 2 < len(words):
+                    org_repo = f"{words[i+1]}/{words[i+2]}"
+                    break
+        
+        if not org_repo:
+            console.print("[yellow]Could not detect organization/repository from your query.[/yellow]")
+            console.print("[dim]Try: 'github tusharacc/cli_assist' or 'check PRs for scimarketplace/externaldata'[/dim]")
+            return
+        
+        # Determine action based on keywords
+        if any(keyword in lower_query for keyword in ['pr', 'pull request', 'pullrequest']):
+            if any(keyword in lower_query for keyword in ['branch', 'rc1', 'main', 'develop']):
+                # Extract branch name
+                branch = None
+                for word in words:
+                    if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
+                        branch = word
+                        break
+                
+                if branch:
+                    console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org_repo}...[/cyan]")
+                    github_pr(org_repo, branch=branch)
+                else:
+                    console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
+                    github_pr(org_repo, list_all=True)
+            else:
+                console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
+                github_pr(org_repo, list_all=True)
+                
+        elif any(keyword in lower_query for keyword in ['clone', 'pull', 'fetch', 'download']):
+            # Extract branch if specified
+            branch = None
+            for word in words:
+                if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
+                    branch = word
+                    break
+            
+            console.print(f"[cyan]🔍 Cloning {org_repo}...[/cyan]")
+            github_clone(org_repo, branch=branch)
+            
+        elif any(keyword in lower_query for keyword in ['latest', 'recent', 'commit']):
+            console.print(f"[cyan]🔍 Getting latest commit info for {org_repo}...[/cyan]")
+            # This would require implementing a commit command
+            console.print("[yellow]Commit details feature coming soon![/yellow]")
+            
+        else:
+            # Default to listing PRs
+            console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
+            github_pr(org_repo, list_all=True)
+            
+    except Exception as e:
+        console.print(f"[red]GitHub error: {e}[/red]")
 
 def _interactive_edit(instruction: str, file_path: str = None):
     """Handle edit command in interactive mode"""
@@ -2062,6 +2196,150 @@ RELATED CODE:\n{snippets}"""
         
     except Exception as e:
         console.print(f"[red]Chat error: {e}[/red]")
+
+# GitHub Integration Commands
+@app.command()
+def github_clone(org_repo: str, branch: str = None, target_dir: str = None):
+    """Clone a GitHub repository and cd into it
+    
+    Examples:
+        lumos-cli github-clone scimarketplace/externaldata
+        lumos-cli github-clone scimarketplace/externaldata --branch RC1
+        lumos-cli github-clone scimarketplace/externaldata --target-dir ./my-repo
+    """
+    try:
+        # Parse org/repo
+        if "/" not in org_repo:
+            console.print("[red]Error: Repository must be in format 'org/repo'[/red]")
+            return
+        
+        org, repo = org_repo.split("/", 1)
+        
+        # Initialize GitHub client
+        github = GitHubClient()
+        
+        if not github.test_connection():
+            console.print("[red]GitHub connection failed. Please check your GITHUB_TOKEN[/red]")
+            console.print("[dim]Set your token with: export GITHUB_TOKEN=your_token[/dim]")
+            return
+        
+        console.print(f"[cyan]🔍 Cloning {org}/{repo}...[/cyan]")
+        
+        # Clone repository
+        success, repo_path = github.clone_repository(org, repo, branch, target_dir)
+        
+        if success:
+            console.print(f"[green]✅ Successfully cloned to: {repo_path}[/green]")
+            console.print(f"[dim]💡 To work in this repository, run: cd {repo_path}[/dim]")
+            
+            # Show repository info
+            repo_info = github.get_repository_info(org, repo)
+            if repo_info:
+                console.print(f"\n[bold]Repository Info:[/bold]")
+                console.print(f"  📝 Description: {repo_info.get('description', 'No description')}")
+                console.print(f"  ⭐ Stars: {repo_info.get('stargazers_count', 0)}")
+                console.print(f"  🍴 Forks: {repo_info.get('forks_count', 0)}")
+                console.print(f"  📅 Updated: {repo_info.get('updated_at', 'Unknown')[:10]}")
+        else:
+            console.print("[red]❌ Clone failed[/red]")
+            
+    except Exception as e:
+        console.print(f"[red]GitHub clone error: {e}[/red]")
+
+@app.command()
+def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all: bool = False):
+    """Check pull requests for a GitHub repository
+    
+    Examples:
+        lumos-cli github-pr scimarketplace/externaldata --branch RC1
+        lumos-cli github-pr scimarketplace/externaldata --pr 123
+        lumos-cli github-pr scimarketplace/externaldata --list
+    """
+    try:
+        # Parse org/repo
+        if "/" not in org_repo:
+            console.print("[red]Error: Repository must be in format 'org/repo'[/red]")
+            return
+        
+        org, repo = org_repo.split("/", 1)
+        
+        # Initialize GitHub client
+        github = GitHubClient()
+        
+        if not github.test_connection():
+            console.print("[red]GitHub connection failed. Please check your GITHUB_TOKEN[/red]")
+            console.print("[dim]Set your token with: export GITHUB_TOKEN=your_token[/dim]")
+            return
+        
+        if pr_number:
+            # Get specific PR
+            console.print(f"[cyan]🔍 Getting PR #{pr_number} for {org}/{repo}...[/cyan]")
+            pr = github.get_pull_request(org, repo, pr_number)
+            
+            if pr:
+                commits = github.get_pull_request_commits(org, repo, pr_number)
+                files = github.get_pull_request_files(org, repo, pr_number)
+                summary = github.format_pr_summary(pr, commits, files)
+                console.print(Panel(summary, title=f"PR #{pr_number}", border_style="blue"))
+            else:
+                console.print(f"[red]PR #{pr_number} not found[/red]")
+                
+        elif list_all:
+            # List all PRs
+            console.print(f"[cyan]🔍 Listing all PRs for {org}/{repo}...[/cyan]")
+            prs = github.list_pull_requests(org, repo)
+            github.display_pr_table(prs)
+            
+        elif branch:
+            # Check PRs for specific branch
+            console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org}/{repo}...[/cyan]")
+            prs = github.list_pull_requests(org, repo, head=branch)
+            
+            if prs:
+                console.print(f"[green]Found {len(prs)} PR(s) for branch '{branch}':[/green]")
+                github.display_pr_table(prs)
+                
+                # Show detailed summary for the first PR
+                if prs:
+                    pr = prs[0]
+                    commits = github.get_pull_request_commits(org, repo, pr['number'])
+                    files = github.get_pull_request_files(org, repo, pr['number'])
+                    summary = github.format_pr_summary(pr, commits, files)
+                    console.print(Panel(summary, title=f"Latest PR for {branch}", border_style="green"))
+            else:
+                console.print(f"[yellow]No PRs found for branch '{branch}'[/yellow]")
+        else:
+            console.print("[red]Please specify --branch, --pr, or --list[/red]")
+            
+    except Exception as e:
+        console.print(f"[red]GitHub PR error: {e}[/red]")
+
+@app.command()
+def github_config():
+    """Configure GitHub integration settings"""
+    console.print("[bold cyan]🔧 GitHub Configuration[/bold cyan]")
+    
+    # Check current token
+    token = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
+    if token:
+        console.print(f"[green]✅ GITHUB_TOKEN is set[/green]")
+        console.print(f"[dim]Token: {token[:8]}...{token[-4:]}[/dim]")
+        
+        # Test connection
+        github = GitHubClient()
+        if github.test_connection():
+            console.print("[green]✅ GitHub connection successful[/green]")
+        else:
+            console.print("[red]❌ GitHub connection failed[/red]")
+    else:
+        console.print("[yellow]⚠️  GITHUB_TOKEN not set[/yellow]")
+        console.print("\n[bold]To configure GitHub integration:[/bold]")
+        console.print("1. Go to GitHub → Settings → Developer settings → Personal access tokens")
+        console.print("2. Generate a new token with 'repo' scope")
+        console.print("3. Set the token:")
+        console.print("   [dim]export GITHUB_TOKEN=your_token_here[/dim]")
+        console.print("   [dim]# Or add to your .env file:[/dim]")
+        console.print("   [dim]echo 'GITHUB_TOKEN=your_token_here' >> .env[/dim]")
 
 if __name__ == "__main__":
     app()

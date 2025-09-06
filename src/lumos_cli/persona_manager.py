@@ -128,7 +128,7 @@ class PersonaManager:
         instructions = {
             "plan": "Break down goals into step-by-step actionable tasks. Consider the project's architecture and existing patterns. Provide specific file paths and implementation details.",
             
-            "edit": "Modify the provided code according to the user's instructions. Return only the complete updated file content without explanations. Maintain existing code style and patterns.",
+            "edit": "Modify the provided code according to the user's instructions. Return ONLY the complete updated file content as raw code - no markdown blocks, no explanations, no comments about changes. The response must be directly writable to a file. Maintain existing code style and patterns.",
             
             "review": "Analyze the code for bugs, security issues, performance problems, and adherence to best practices. Provide specific, actionable feedback with line numbers when possible.",
             

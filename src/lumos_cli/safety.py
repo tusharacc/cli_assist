@@ -90,11 +90,38 @@ class SafeFileEditor:
     def _validate_python(self, content: str) -> list:
         """Basic Python syntax validation"""
         warnings = []
+        
+        # Check for markdown code blocks
+        if '```python' in content or '```' in content:
+            warnings.append("Content contains markdown code blocks - this will corrupt the file")
+        
+        # Check for common LLM response patterns that shouldn't be in code
+        if content.strip().startswith('```') or content.strip().endswith('```'):
+            warnings.append("Content appears to be wrapped in markdown code blocks")
+        
         try:
             compile(content, '<string>', 'exec')
         except SyntaxError as e:
             warnings.append(f"Python syntax error: {e}")
         return warnings
+    
+    def _clean_markdown_blocks(self, content: str) -> str:
+        """Remove markdown code blocks from content"""
+        import re
+        
+        # Remove ```python ... ``` blocks
+        content = re.sub(r'```python\s*\n?(.*?)\n?```', r'\1', content, flags=re.DOTALL)
+        
+        # Remove generic ``` ... ``` blocks
+        content = re.sub(r'```\s*\n?(.*?)\n?```', r'\1', content, flags=re.DOTALL)
+        
+        # Remove any remaining ``` markers
+        content = re.sub(r'```', '', content)
+        
+        # Clean up extra whitespace
+        content = content.strip()
+        
+        return content
     
     def _validate_javascript(self, content: str) -> list:
         """Basic JavaScript validation (simple checks)"""
@@ -150,6 +177,12 @@ class SafeFileEditor:
     def safe_write(self, file_path: str, content: str, 
                    preview: bool = True, auto_confirm: bool = False) -> bool:
         """Safely write content to file with preview and backup"""
+        
+        # Clean content of markdown blocks
+        cleaned_content = self._clean_markdown_blocks(content)
+        if cleaned_content != content:
+            console.print("[yellow]⚠️  Detected and removed markdown code blocks from content[/yellow]")
+            content = cleaned_content
         
         # Create backup if file exists
         backup_path = None

@@ -1608,6 +1608,17 @@ def _detect_command_intent(user_input: str) -> dict:
                 command = match.group(2) if len(match.groups()) >= 2 else user_input
             else:
                 command = user_input
+            
+            # Fix: Add python prefix for .py files that don't already have it
+            command = command.strip()
+            if '.py' in command and not command.startswith('python '):
+                import re
+                # Extract Python filename from command using regex
+                py_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*\.py)', command)
+                if py_match:
+                    py_filename = py_match.group(1)
+                    command = f"python {py_filename}"
+            
             return {
                 'type': 'shell',
                 'command': command,

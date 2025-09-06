@@ -1929,7 +1929,17 @@ def _interactive_github(query: str):
             
         elif any(keyword in lower_query for keyword in ['commit', 'commits']):
             # Handle commit-related queries
-            if any(keyword in lower_query for keyword in ['latest', 'last', 'recent']):
+            # Check for specific commit SHA (7+ character hex string)
+            import re
+            sha_pattern = r'\b([a-f0-9]{7,40})\b'
+            sha_match = re.search(sha_pattern, query)
+            
+            if sha_match:
+                # Specific commit SHA requested
+                commit_sha = sha_match.group(1)
+                console.print(f"[cyan]🔍 Getting detailed commit analysis for {commit_sha} from {org_repo}...[/cyan]")
+                github_commits(org_repo, commit_sha=commit_sha)
+            elif any(keyword in lower_query for keyword in ['latest', 'last', 'recent']):
                 # Extract count if specified
                 count = 1
                 for word in words:
@@ -2367,11 +2377,11 @@ def github_commits(org_repo: str, branch: str = None, count: int = 5, latest: bo
             return
         
         if commit_sha:
-            # Get specific commit
-            console.print(f"[cyan]🔍 Getting commit {commit_sha} from {org_repo}...[/cyan]")
+            # Get specific commit with detailed analysis
+            console.print(f"[cyan]🔍 Getting detailed commit analysis for {commit_sha} from {org_repo}...[/cyan]")
             commit = client.get_commit(org, repo, commit_sha)
             if commit:
-                console.print(client.format_commit_summary(commit))
+                console.print(client.format_detailed_commit_analysis(commit))
             else:
                 console.print("[yellow]Commit not found[/yellow]")
                 

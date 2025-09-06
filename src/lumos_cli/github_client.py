@@ -344,6 +344,184 @@ class GitHubClient:
 """
         return summary.strip()
     
+    def format_detailed_commit_analysis(self, commit: Dict) -> str:
+        """Format detailed commit analysis with file changes and code analysis"""
+        sha = commit.get('sha', 'unknown')[:7]
+        author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
+        date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+        message = commit.get('commit', {}).get('message', 'No message')
+        
+        # Get stats
+        stats = commit.get('stats', {})
+        additions = stats.get('additions', 0)
+        deletions = stats.get('deletions', 0)
+        files_changed = stats.get('total', 0)
+        
+        # Get files changed
+        files = commit.get('files', [])
+        
+        # Analyze file changes
+        file_analysis = self._analyze_file_changes(files)
+        
+        # Build detailed summary
+        summary = f"""
+[bold blue]🔹 Commit Details: {sha}[/bold blue]
+[dim]👤 Author: {author} | 📅 Date: {date}[/dim]
+
+[bold]📝 Message:[/bold]
+{message}
+
+[bold]📊 Statistics:[/bold]
+• Lines added: [green]+{additions}[/green]
+• Lines deleted: [red]-{deletions}[/red]
+• Files changed: [blue]{files_changed}[/blue]
+• Net change: [yellow]{additions - deletions:+d}[/yellow]
+
+[bold]📁 Files Changed:[/bold]
+{file_analysis['file_summary']}
+
+[bold]🔍 Code Analysis:[/bold]
+{file_analysis['code_analysis']}
+
+[bold]📈 Impact Summary:[/bold]
+{file_analysis['impact_summary']}
+"""
+        return summary.strip()
+    
+    def _analyze_file_changes(self, files: List[Dict]) -> Dict[str, str]:
+        """Analyze file changes to extract meaningful information"""
+        if not files:
+            return {
+                'file_summary': "No file changes detected",
+                'code_analysis': "No code changes to analyze",
+                'impact_summary': "No changes detected"
+            }
+        
+        # Categorize files
+        file_categories = {
+            'source_files': [],
+            'test_files': [],
+            'config_files': [],
+            'documentation': [],
+            'other': []
+        }
+        
+        for file_info in files:
+            filename = file_info.get('filename', '')
+            status = file_info.get('status', '')
+            additions = file_info.get('additions', 0)
+            deletions = file_info.get('deletions', 0)
+            
+            # Categorize file
+            if any(ext in filename.lower() for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs']):
+                if 'test' in filename.lower() or 'spec' in filename.lower():
+                    file_categories['test_files'].append((filename, status, additions, deletions))
+                else:
+                    file_categories['source_files'].append((filename, status, additions, deletions))
+            elif any(ext in filename.lower() for ext in ['.json', '.yaml', '.yml', '.toml', '.ini', '.conf']):
+                file_categories['config_files'].append((filename, status, additions, deletions))
+            elif any(ext in filename.lower() for ext in ['.md', '.txt', '.rst', '.adoc']):
+                file_categories['documentation'].append((filename, status, additions, deletions))
+            else:
+                file_categories['other'].append((filename, status, additions, deletions))
+        
+        # Build file summary
+        file_summary = ""
+        for category, files_list in file_categories.items():
+            if files_list:
+                category_name = category.replace('_', ' ').title()
+                file_summary += f"\n[bold]{category_name}:[/bold]\n"
+                for filename, status, additions, deletions in files_list:
+                    status_icon = {"added": "🆕", "modified": "✏️", "removed": "🗑️", "renamed": "📝"}.get(status, "📄")
+                    changes = f"+{additions} -{deletions}" if additions > 0 or deletions > 0 else ""
+                    file_summary += f"  {status_icon} {filename} {changes}\n"
+        
+        # Analyze code changes
+        code_analysis = self._analyze_code_patterns(files)
+        
+        # Generate impact summary
+        impact_summary = self._generate_impact_summary(files, file_categories)
+        
+        return {
+            'file_summary': file_summary.strip(),
+            'code_analysis': code_analysis,
+            'impact_summary': impact_summary
+        }
+    
+    def _analyze_code_patterns(self, files: List[Dict]) -> str:
+        """Analyze code patterns in changed files"""
+        patterns = {
+            'new_features': 0,
+            'bug_fixes': 0,
+            'refactoring': 0,
+            'tests': 0,
+            'configuration': 0
+        }
+        
+        for file_info in files:
+            filename = file_info.get('filename', '')
+            status = file_info.get('status', '')
+            additions = file_info.get('additions', 0)
+            deletions = file_info.get('deletions', 0)
+            
+            # Analyze based on filename and changes
+            if 'test' in filename.lower() or 'spec' in filename.lower():
+                patterns['tests'] += 1
+            elif any(ext in filename.lower() for ext in ['.json', '.yaml', '.yml', '.toml', '.ini']):
+                patterns['configuration'] += 1
+            elif status == 'added' and additions > 50:
+                patterns['new_features'] += 1
+            elif additions < 20 and deletions < 20 and additions > 0:
+                patterns['bug_fixes'] += 1
+            elif additions > 30 and deletions > 30:
+                patterns['refactoring'] += 1
+        
+        # Build analysis text
+        analysis_parts = []
+        if patterns['new_features'] > 0:
+            analysis_parts.append(f"• [green]New features: {patterns['new_features']} files[/green]")
+        if patterns['bug_fixes'] > 0:
+            analysis_parts.append(f"• [yellow]Bug fixes: {patterns['bug_fixes']} files[/yellow]")
+        if patterns['refactoring'] > 0:
+            analysis_parts.append(f"• [blue]Refactoring: {patterns['refactoring']} files[/blue]")
+        if patterns['tests'] > 0:
+            analysis_parts.append(f"• [cyan]Test changes: {patterns['tests']} files[/cyan]")
+        if patterns['configuration'] > 0:
+            analysis_parts.append(f"• [magenta]Configuration: {patterns['configuration']} files[/magenta]")
+        
+        if not analysis_parts:
+            return "• [dim]No significant code patterns detected[/dim]"
+        
+        return "\n".join(analysis_parts)
+    
+    def _generate_impact_summary(self, files: List[Dict], file_categories: Dict) -> str:
+        """Generate impact summary based on file changes"""
+        total_files = len(files)
+        source_files = len(file_categories['source_files'])
+        test_files = len(file_categories['test_files'])
+        config_files = len(file_categories['config_files'])
+        
+        # Calculate impact level
+        if source_files > 5:
+            impact_level = "High"
+            impact_color = "red"
+        elif source_files > 2:
+            impact_level = "Medium"
+            impact_color = "yellow"
+        else:
+            impact_level = "Low"
+            impact_color = "green"
+        
+        summary_parts = [
+            f"• [bold {impact_color}]Impact Level: {impact_level}[/bold {impact_color}]",
+            f"• Source files: {source_files}",
+            f"• Test files: {test_files}",
+            f"• Config files: {config_files}",
+            f"• Total files: {total_files}"
+        ]
+        
+        return "\n".join(summary_parts)
+    
     def display_commits_table(self, commits: List[Dict]):
         """Display commits in a table format"""
         if not commits:

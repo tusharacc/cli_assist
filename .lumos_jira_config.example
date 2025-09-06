@@ -1,0 +1,49 @@
+{
+  "base_url": "https://your-company.atlassian.net",
+  "username": "your.email@company.com",
+  "token": "your-personal-access-token-here",
+  "default_project": "PROJECT_KEY"
+}
+
+# JIRA Configuration Example for Lumos CLI
+# =========================================
+#
+# This file shows the expected structure for JIRA integration.
+# The actual config will be stored securely at ~/.lumos_jira_config.json
+#
+# Setup Steps:
+# 1. Run: lumos-cli jira config
+# 2. Enter your JIRA instance URL
+# 3. Enter your email/username
+# 4. Enter your Personal Access Token (PAT)
+# 5. Optionally set a default project key
+#
+# Personal Access Token Setup:
+# - Go to: https://id.atlassian.com/manage/api-tokens
+# - Click "Create API token"
+# - Give it a name like "Lumos CLI"
+# - Copy the generated token
+# - Use this token in the configuration
+#
+# Security Notes:
+# - Config file has 600 permissions (owner read/write only)
+# - Never commit this file to version control
+# - Tokens are stored locally, not transmitted except to your JIRA instance
+#
+# Common Use Cases:
+# ================
+#
+# Daily workflow:
+# lumos-cli jira browse
+# → Shows "my tickets in current sprint"
+#
+# Search specific tickets:
+# lumos-cli jira search -q "high priority tickets assigned to me"
+#
+# Quick comment updates:
+# lumos-cli jira comment PROJ-123 -c "Completed implementation, ready for review"
+#
+# The system intelligently converts natural language to JQL:
+# "my open tickets" → "assignee = currentUser() AND status not in (Done, Closed, Resolved)"
+# "current sprint" → "sprint in openSprints()"
+# "high priority" → "priority in (High, Highest)"

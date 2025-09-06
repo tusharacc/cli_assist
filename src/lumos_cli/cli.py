@@ -1390,6 +1390,120 @@ def logs(lines: int = 50, debug_only: bool = True, show_files: bool = True):
     else:
         console.print("[dim]No recent logs found[/dim]")
 
+# JIRA Integration Commands
+@app.command()
+def jira(
+    action: str = typer.Argument(help="Action: config, search, browse, comment"),
+    query: str = typer.Option("", "--query", "-q", help="Search query or ticket key"),
+    comment_text: str = typer.Option("", "--comment", "-c", help="Comment text to add")
+):
+    """🎫 JIRA integration for enterprise workflows
+    
+    Examples:
+      lumos-cli jira config                           → Setup JIRA credentials
+      lumos-cli jira search -q "my open tickets"     → Search for tickets  
+      lumos-cli jira browse                          → Interactive ticket browser
+      lumos-cli jira comment ABC-123 -c "Progress update" → Add comment to ticket
+    """
+    from .jira_client import get_jira_client, JiraConfigManager, JiraTicketBrowser
+    
+    if action == "config":
+        # Configure JIRA settings
+        config_manager = JiraConfigManager()
+        console.print("🔧 JIRA Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.base_url}")
+            if not typer.confirm("Reconfigure JIRA settings?"):
+                return
+        
+        new_config = config_manager.setup_interactive()
+        if new_config:
+            console.print("✅ JIRA configured successfully!")
+        
+    elif action == "search":
+        # Search for tickets
+        client = get_jira_client()
+        if not client:
+            return
+            
+        if not query:
+            query = typer.prompt("Enter search query (e.g., 'my open tickets in current sprint')")
+        
+        console.print(f"🔍 Searching: {query}")
+        
+        jql = client.construct_jql(query)
+        console.print(f"[dim]JQL: {jql}[/dim]")
+        
+        success, tickets, message = client.search_tickets(jql)
+        
+        if success:
+            console.print(f"✅ {message}")
+            browser = JiraTicketBrowser(client)
+            browser.display_tickets_table(tickets)
+        else:
+            console.print(f"❌ {message}")
+    
+    elif action == "browse":
+        # Interactive ticket browser
+        client = get_jira_client()
+        if not client:
+            return
+        
+        search_query = query or "my tickets in current sprint"
+        console.print(f"🔍 Loading: {search_query}")
+        
+        jql = client.construct_jql(search_query)
+        success, tickets, message = client.search_tickets(jql)
+        
+        if not success:
+            console.print(f"❌ {message}")
+            return
+        
+        browser = JiraTicketBrowser(client)
+        selected_ticket = browser.browse_tickets(tickets)
+        
+        if selected_ticket:
+            # Get detailed ticket info
+            success, detailed_ticket, message = client.get_ticket_details(selected_ticket.key)
+            
+            if success:
+                browser.display_ticket_details(detailed_ticket)
+                
+                # Ask for next action
+                console.print("\n[dim]What would you like to do?[/dim]")
+                console.print("[dim]• Press 'c' to add a comment[/dim]")
+                console.print("[dim]• Press Enter to return[/dim]")
+                
+                action = typer.prompt("Action", default="").lower()
+                
+                if action == 'c':
+                    comment = typer.prompt("Enter comment")
+                    success, result = client.add_comment(selected_ticket.key, comment)
+                    console.print(result)
+            else:
+                console.print(f"❌ {message}")
+    
+    elif action == "comment":
+        # Add comment to ticket
+        client = get_jira_client()
+        if not client:
+            return
+        
+        if not query:
+            query = typer.prompt("Enter ticket key (e.g., ABC-123)")
+        
+        if not comment_text:
+            comment_text = typer.prompt("Enter comment")
+        
+        success, result = client.add_comment(query, comment_text)
+        console.print(result)
+    
+    else:
+        console.print("[red]Invalid action. Use: config, search, browse, or comment[/red]")
+        console.print("Run 'lumos-cli jira --help' for examples")
+
 def interactive_mode():
     """Enhanced interactive mode with command detection"""
     router = LLMRouter("auto", "devstral")
@@ -1660,6 +1774,8 @@ def _show_interactive_help():
   "fix ModuleNotFoundError"         → Error analysis & fixes
   "app not working"                 → Debugging assistance
   "how do I implement JWT?"         → Planning assistance
+  "get me jira PROJ-123"           → Fetch JIRA ticket details
+  "show ALPHA-456"                 → Display ticket info & comments
 
 [bold]General:[/bold]
   Just ask questions naturally - I'll understand the intent!
@@ -1720,14 +1836,15 @@ def _interactive_shell(command: str):
         # Execute with safety checks and confirmation
         success, stdout, stderr = execute_shell_command(command, context)
         
-        # Store failure information for potential analysis
-        if not success and stderr != "Cancelled by user":
-            # Store the last failure for analysis
-            global _last_failure_info
-            _last_failure_info = {
+        # Store execution information for potential analysis (both failures and successes)
+        if stderr != "Cancelled by user":
+            # Store the last execution for analysis
+            global _last_execution_info
+            _last_execution_info = {
                 'command': command,
                 'stdout': stdout,
                 'stderr': stderr,
+                'success': success,
                 'timestamp': str(__import__('datetime').datetime.now())
             }
         elif not success and stderr == "Cancelled by user":
@@ -1736,8 +1853,8 @@ def _interactive_shell(command: str):
     except Exception as e:
         console.print(f"[red]Shell execution error: {e}[/red]")
 
-# Global variable to store last failure information
-_last_failure_info = None
+# Global variable to store last execution information (both success and failure)
+_last_execution_info = None
 
 def _interactive_fix(instruction: str):
     """Handle fix command in interactive mode"""
@@ -1749,48 +1866,135 @@ def _interactive_fix(instruction: str):
 def _interactive_chat(user_input: str, router, db, history, persona, context):
     """Handle general chat in interactive mode with intelligent file discovery"""
     try:
-        # Check if user is asking for failure analysis
-        global _last_failure_info
-        failure_analysis_patterns = [
+        # Check if user is asking for program analysis (errors, bugs, or output issues)
+        global _last_execution_info
+        analysis_patterns = [
             'analyze the failure', 'analyze this failure', 'what went wrong',
             'why did it fail', 'explain the error', 'debug the error',
-            'what caused the failure', 'help with the error'
+            'what caused the failure', 'help with the error',
+            # Bug analysis patterns
+            'check the output', 'analyze the program', 'why no data', 
+            'output is wrong', 'not working correctly', 'program bug',
+            'suggest fix', 'fix the bug', 'debug the program'
         ]
         
         user_lower = user_input.lower()
-        if any(pattern in user_lower for pattern in failure_analysis_patterns) and _last_failure_info:
-            console.print("[dim]🔍 Analyzing recent failure...[/dim]")
+        if any(pattern in user_lower for pattern in analysis_patterns) and _last_execution_info:
+            
+            if not _last_execution_info['success']:
+                # Runtime error - program crashed
+                console.print("[dim]🔍 Analyzing recent runtime failure...[/dim]")
+                
+                try:
+                    from .failure_analyzer import analyze_command_failure, failure_analyzer
+                    
+                    # Get detailed analysis
+                    analysis = analyze_command_failure(
+                        _last_execution_info['command'],
+                        _last_execution_info['stdout'], 
+                        _last_execution_info['stderr'],
+                        1  # Assume exit code 1 for failures
+                    )
+                    
+                    # Display comprehensive analysis
+                    failure_analyzer.display_analysis(analysis)
+                    
+                    # Add to history
+                    analysis_summary = f"Analyzed runtime failure of '{_last_execution_info['command']}': {analysis.likely_cause}"
+                    history.add_message("user", user_input, command="failure_analysis")
+                    history.add_message("assistant", analysis_summary, command="failure_analysis")
+                    
+                    console.print(f"\n[dim]💡 This analysis was based on the recent runtime error[/dim]")
+                    return
+                    
+                except Exception as e:
+                    console.print(f"[red]Failed to analyze: {e}[/red]")
+                    # Fall through to normal processing
+            
+            else:
+                # Logic bug - program ran successfully but output is wrong
+                console.print("[dim]🐛 Analyzing program logic and output...[/dim]")
+                console.print(f"[dim]📋 Last successful execution: {_last_execution_info['command']}[/dim]")
+                
+                # This is a logic bug, not a runtime error - use normal LLM analysis
+                # Fall through to normal processing to let LLM analyze the code
+        
+        elif any(pattern in user_lower for pattern in analysis_patterns) and not _last_execution_info:
+            console.print("[yellow]No recent program execution to analyze.[/yellow]")
+            console.print("[dim]Run a program first, then ask me to analyze it.[/dim]")
+            return
+        
+        # Check for JIRA ticket requests
+        import re
+        jira_patterns = [
+            r'\b([A-Z]+-\d+)\b',  # Standard JIRA key pattern like PROJECT-123
+            r'jira\s+([A-Z]+-\d+)',  # "jira PROJECT-123"
+            r'get\s+.*jira\s+([A-Z]+-\d+)',  # "get me jira PROJECT-123"
+            r'show\s+.*([A-Z]+-\d+)',  # "show PROJECT-123"
+            r'ticket\s+([A-Z]+-\d+)'  # "ticket PROJECT-123"
+        ]
+        
+        jira_ticket_key = None
+        for pattern in jira_patterns:
+            match = re.search(pattern, user_input, re.IGNORECASE)
+            if match:
+                jira_ticket_key = match.group(1).upper()
+                break
+        
+        if jira_ticket_key:
+            console.print(f"[dim]🎫 Detected JIRA ticket request: {jira_ticket_key}[/dim]")
             
             try:
-                from .failure_analyzer import analyze_command_failure, failure_analyzer
+                from .jira_client import get_jira_client, JiraTicketBrowser
+                client = get_jira_client()
                 
-                # Get detailed analysis
-                analysis = analyze_command_failure(
-                    _last_failure_info['command'],
-                    _last_failure_info['stdout'], 
-                    _last_failure_info['stderr'],
-                    1  # Assume exit code 1 for failures
-                )
+                if not client:
+                    console.print("[yellow]JIRA not configured. Run 'lumos-cli jira config' first.[/yellow]")
+                    return
                 
-                # Display comprehensive analysis
-                failure_analyzer.display_analysis(analysis)
+                # Get ticket details
+                success, ticket, message = client.get_ticket_details(jira_ticket_key)
                 
-                # Add to history
-                analysis_summary = f"Analyzed failure of command '{_last_failure_info['command']}': {analysis.likely_cause}"
-                history.add_message("user", user_input, command="failure_analysis")
-                history.add_message("assistant", analysis_summary, command="failure_analysis")
-                
-                console.print(f"\n[dim]💡 This analysis was based on the recent command failure[/dim]")
-                return
-                
+                if success:
+                    console.print(f"✅ Found ticket {jira_ticket_key}")
+                    
+                    # Display ticket details
+                    browser = JiraTicketBrowser(client)
+                    browser.display_ticket_details(ticket)
+                    
+                    # Ask what to do next
+                    console.print("\n[dim]What would you like to do with this ticket?[/dim]")
+                    console.print("[dim]• Press 'c' to add a comment[/dim]")
+                    console.print("[dim]• Press 'd' to get more details[/dim]")
+                    console.print("[dim]• Press Enter to continue with general chat[/dim]")
+                    
+                    try:
+                        action = input("Action: ").lower().strip()
+                        
+                        if action == 'c':
+                            comment = input("Enter comment: ")
+                            if comment.strip():
+                                success, result = client.add_comment(jira_ticket_key, comment)
+                                console.print(result)
+                        elif action == 'd':
+                            console.print(f"[dim]Full ticket details already displayed above[/dim]")
+                        # For Enter or anything else, continue to normal chat
+                        
+                    except KeyboardInterrupt:
+                        console.print("\n[dim]Continuing with normal chat...[/dim]")
+                    
+                    # Add to history
+                    history.add_message("user", user_input, command="jira_ticket")
+                    history.add_message("assistant", f"Retrieved JIRA ticket {jira_ticket_key}: {ticket.summary}", command="jira_ticket")
+                    return
+                    
+                else:
+                    console.print(f"❌ Could not retrieve ticket {jira_ticket_key}: {message}")
+                    console.print("[dim]Continuing with normal chat processing...[/dim]")
+                    
             except Exception as e:
-                console.print(f"[red]Failed to analyze: {e}[/red]")
-                # Fall through to normal processing
-        
-        elif any(pattern in user_lower for pattern in failure_analysis_patterns) and not _last_failure_info:
-            console.print("[yellow]No recent command failures to analyze.[/yellow]")
-            console.print("[dim]Run a command that fails, then ask me to analyze the failure.[/dim]")
-            return
+                console.print(f"[red]Error accessing JIRA: {e}[/red]")
+                console.print("[dim]Continuing with normal chat processing...[/dim]")
         
         # Always try smart file discovery first - let the LLM decide if it needs the files
         console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")

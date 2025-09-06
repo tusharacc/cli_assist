@@ -83,7 +83,7 @@ class JiraConfigManager:
                 'Accept': 'application/json',
                 'Authorization': f'Bearer {api_token}'
             }
-            response = requests.get(f"{base_url}/rest/api/3/myself", headers=headers, timeout=10)
+            response = requests.get(f"{base_url}/rest/api/latest/myself", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 # Save the config only if connection is successful
@@ -205,7 +205,7 @@ class JiraClient:
         
         try:
             # Make real API call to Jira
-            url = f"{self.base_url}/rest/api/3/issue/{ticket_id}"
+            url = f"{self.base_url}/rest/api/latest/issue/{ticket_id}"
             headers = {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',
@@ -366,7 +366,7 @@ class JiraClient:
         
         try:
             # Make real API call to Jira
-            url = f"{self.base_url}/rest/api/3/search"
+            url = f"{self.base_url}/rest/api/latest/search"
             headers = {
                 'Accept': 'application/json',
                 'Content-Type': 'application/json',

@@ -20,8 +20,70 @@ def interactive_jenkins(query: str):
         # Parse the query to determine what Jenkins operation to perform
         lower_query = query.lower()
         
+        # Check for build status queries (last N builds)
+        if any(keyword in lower_query for keyword in ["build status", "last", "recent", "latest"]) and any(keyword in lower_query for keyword in ["builds", "jobs"]):
+            # Extract number of builds
+            number_match = re.search(r"(\d+)\s*(?:builds?|jobs?)", lower_query)
+            num_builds = int(number_match.group(1)) if number_match else 5
+            
+            # Extract folder
+            if "deploy-all" in lower_query:
+                folder = "scimarketplace/deploy-all"
+            else:
+                folder_match = re.search(r"folder\s+([a-zA-Z0-9_/]+)", lower_query)
+                folder = folder_match.group(1) if folder_match else "scimarketplace/deploy-all"
+            
+            console.print(f"[cyan]🔍 Getting last {num_builds} build status from '{folder}'...[/cyan]")
+            
+            # Get all jobs in the folder
+            jobs = jenkins.get_folder_jobs(folder)
+            if not jobs:
+                console.print(f"[yellow]ℹ️  No jobs found in folder '{folder}'[/yellow]")
+                return
+            
+            # Get recent builds for each job
+            all_recent_builds = []
+            for job in jobs:
+                job_name = job.get("name", "")
+                job_path = f"{folder}/{job_name}" if folder else job_name
+                
+                # Get recent builds (last 24 hours to ensure we have enough data)
+                recent_builds = jenkins.get_recent_builds(job_path, 24)
+                for build in recent_builds:
+                    build["job_name"] = job_name
+                    build["job_path"] = job_path
+                
+                all_recent_builds.extend(recent_builds)
+            
+            # Sort by timestamp (most recent first) and take the requested number
+            all_recent_builds.sort(key=lambda x: x["timestamp"], reverse=True)
+            recent_builds = all_recent_builds[:num_builds]
+            
+            if recent_builds:
+                from rich.table import Table, box
+                table = Table(title=f"Last {len(recent_builds)} Build Status from {folder}", box=box.ROUNDED)
+                table.add_column("Job Name", style="cyan")
+                table.add_column("Build #", style="yellow")
+                table.add_column("Status", style="green")
+                table.add_column("Timestamp", style="blue")
+                table.add_column("Duration", style="magenta")
+                
+                for build in recent_builds:
+                    status_color = "green" if build["status"] == "SUCCESS" else "red" if build["status"] in ["FAILURE", "UNSTABLE", "ABORTED"] else "yellow"
+                    table.add_row(
+                        build["job_name"],
+                        str(build["number"]),
+                        f"[{status_color}]{build['status']}[/{status_color}]",
+                        build["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
+                        f"{build['duration']/1000:.1f}s" if build['duration'] else "N/A"
+                    )
+                
+                console.print(table)
+            else:
+                console.print(f"[yellow]ℹ️  No recent builds found in folder '{folder}'[/yellow]")
+                
         # Check for failed jobs queries
-        if any(keyword in lower_query for keyword in ["failed", "failure", "broken", "error"]):
+        elif any(keyword in lower_query for keyword in ["failed", "failure", "broken", "error"]):
             if "deploy-all" in lower_query:
                 folder = "scimarketplace/deploy-all"
             else:

@@ -42,6 +42,17 @@ class IntentDetector:
                 r'(jira|ticket|sprint|issue|board|project)\s+(.+)',
                 r'(show|get|find|search)\s+(ticket|issue|jira)\s+(.+)'
             ],
+            'jenkins': [
+                r'(jenkins|build|ci|cd|pipeline)\s+(.+)',
+                r'(failed|running|builds?|jobs?)\s+(.+)',
+                r'(last|recent|latest)\s+(\d+)?\s*(builds?|jobs?)\s+(.+)',
+                r'(deploy-all|scimarketplace)\s+(.+)',
+                r'(build|job)\s+(status|parameters?|console)\s+(.+)',
+                r'(get|show|fetch)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(builds?|jobs?)\s+(.+)',
+                r'(folder|folder)\s+(.+)',
+                r'(rc1|rc2|rc3|rc4)\s+(.+)',
+                r'(.+)_multi\s+(.+)'
+            ],
             'neo4j': [
                 r'(graph|neo4j|database|impact|dependencies?)\s+(.+)',
                 r'(which|what)\s+(repositories?|classes?|functions?)\s+(.+)',
@@ -123,15 +134,17 @@ User Query: "{user_input}"
 Available intents:
 1. **github** - GitHub operations (commits, PRs, cloning, repository management)
 2. **jira** - Jira ticket operations (view tickets, sprints, issues)
-3. **neo4j** - Graph database queries (impact analysis, dependencies, relationships)
-4. **edit** - Code editing operations (modify files, add features)
-5. **review** - Code review operations (analyze code, check quality)
-6. **plan** - Planning operations (design, architecture, project planning)
-7. **chat** - General conversation or unclear intent
+3. **jenkins** - Jenkins CI/CD operations (build status, failed jobs, running jobs, build parameters)
+4. **neo4j** - Graph database queries (impact analysis, dependencies, relationships)
+5. **edit** - Code editing operations (modify files, add features)
+6. **review** - Code review operations (analyze code, check quality)
+7. **plan** - Planning operations (design, architecture, project planning)
+8. **chat** - General conversation or unclear intent
 
 Consider these scenarios:
 - "Get 5 commits from repo X" → github
 - "Show me ticket ABC-123" → jira  
+- "Get me the last 5 build status from jenkins in folder deploy-all" → jenkins
 - "What repositories are affected by changes to class Y?" → neo4j
 - "Edit the login function to add validation" → edit
 - "Review the authentication module" → review

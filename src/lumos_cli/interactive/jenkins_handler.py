@@ -5,15 +5,20 @@ Jenkins interactive mode handlers
 import re
 from rich.console import Console
 from ..jenkins_client import JenkinsClient
+from ..debug_logger import get_debug_logger
 
 console = Console()
+debug_logger = get_debug_logger()
 
 def interactive_jenkins(query: str):
     """Handle Jenkins commands in interactive mode"""
+    debug_logger.log_function_call("interactive_jenkins", kwargs={"query": query})
+    
     try:
         jenkins = JenkinsClient()
         
         if not jenkins.test_connection():
+            debug_logger.error("Jenkins connection failed - JENKINS_URL or JENKINS_TOKEN not configured")
             console.print("[red]Jenkins connection failed. Please check your JENKINS_URL and JENKINS_TOKEN[/red]")
             return
         
@@ -22,6 +27,8 @@ def interactive_jenkins(query: str):
         
         # Check for build status queries (last N builds)
         if any(keyword in lower_query for keyword in ["build status", "last", "recent", "latest"]) and any(keyword in lower_query for keyword in ["builds", "jobs"]):
+            debug_logger.info("Processing build status query")
+            
             # Extract number of builds
             number_match = re.search(r"(\d+)\s*(?:builds?|jobs?)", lower_query)
             num_builds = int(number_match.group(1)) if number_match else 5
@@ -33,6 +40,7 @@ def interactive_jenkins(query: str):
                 folder_match = re.search(r"folder\s+([a-zA-Z0-9_/]+)", lower_query)
                 folder = folder_match.group(1) if folder_match else "scimarketplace/deploy-all"
             
+            debug_logger.info(f"Build status query: {num_builds} builds from {folder}")
             console.print(f"[cyan]🔍 Getting last {num_builds} build status from '{folder}'...[/cyan]")
             
             # Get all jobs in the folder
@@ -154,6 +162,8 @@ def interactive_jenkins(query: str):
                 
         # Check for build parameters queries
         elif any(keyword in lower_query for keyword in ["parameters", "params", "build parameters"]):
+            debug_logger.info("Processing build parameters query")
+            
             # Extract job path and build number
             job_match = re.search(r"job\s+([a-zA-Z0-9_/]+)", lower_query)
             build_match = re.search(r"(\d+)", lower_query)
@@ -162,14 +172,18 @@ def interactive_jenkins(query: str):
                 job_path = job_match.group(1)
                 build_number = int(build_match.group(1))
                 
+                debug_logger.info(f"Build parameters query: {job_path} #{build_number}")
                 console.print(f"[cyan]🔍 Getting build parameters for {job_path} #{build_number}...[/cyan]")
                 parameters = jenkins.get_build_parameters(job_path, build_number)
                 jenkins.display_build_parameters_table(parameters)
             else:
+                debug_logger.warning("Could not identify job path and build number in query")
                 console.print("[red]Could not identify job path and build number in query[/red]")
                 
         # Check for failure analysis queries
         elif any(keyword in lower_query for keyword in ["why", "failed", "console", "analyze", "failure"]):
+            debug_logger.info("Processing failure analysis query")
+            
             # Extract job path and build number with better patterns
             job_match = re.search(r"(?:job|folder)\s+([a-zA-Z0-9_/]+)", lower_query)
             build_match = re.search(r"(?:build\s+number\s+)?(\d+)", lower_query)
@@ -182,12 +196,14 @@ def interactive_jenkins(query: str):
                 if not job_path.startswith("scimarketplace/"):
                     job_path = f"scimarketplace/{job_path}"
                 
+                debug_logger.info(f"Failure analysis query: {job_path} #{build_number}")
                 console.print(f"[cyan]🔍 Analyzing build failure for {job_path} #{build_number}...[/cyan]")
                 console.print("[dim]Using efficient streaming analysis for large console logs...[/dim]")
                 
                 analysis = jenkins.analyze_build_failure(job_path, build_number)
                 jenkins.display_failure_analysis(analysis)
             else:
+                debug_logger.warning("Could not identify job path and build number in query")
                 console.print("[red]Could not identify job path and build number in query[/red]")
                 console.print("[dim]Try: 'why did build number 20 in folder deploy-all failed'[/dim]")
                 
@@ -201,4 +217,5 @@ def interactive_jenkins(query: str):
             console.print("• 'Get me the last 5 build status from jenkins in folder deploy-all'")
             
     except Exception as e:
+        debug_logger.error(f"Jenkins interactive error: {e}")
         console.print(f"[red]Jenkins interactive error: {e}[/red]")

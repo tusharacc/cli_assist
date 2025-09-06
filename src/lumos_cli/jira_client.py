@@ -55,17 +55,17 @@ class JiraConfigManager:
         console.print("🔧 Jira Configuration Setup", style="bold blue")
         console.print("=" * 40)
         
-        console.print("📝 [dim]To get your Jira API token:[/dim]")
+        console.print("📝 [dim]To get your Jira Personal Access Token:[/dim]")
         console.print("   1. Go to Jira → Profile → Personal Access Tokens")
         console.print("   2. Click 'Create API token'")
         console.print("   3. Give it a label and copy the generated token")
-        console.print("   4. Or use your password for basic auth")
+        console.print("   4. This will be used as a Bearer token for authentication")
         console.print()
         
         base_url = Prompt.ask("Jira Base URL", default="https://your-company.atlassian.net")
         username = Prompt.ask("Jira Username/Email")
         console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
-        api_token = Prompt.ask("API Token or Password", password=True)
+        api_token = Prompt.ask("Personal Access Token", password=True)
         
         config = {
             'base_url': base_url.rstrip('/'),
@@ -79,9 +79,11 @@ class JiraConfigManager:
             
             # Test the connection with a real API call
             import requests
-            auth = (username, api_token)
-            headers = {'Accept': 'application/json'}
-            response = requests.get(f"{base_url}/rest/api/3/myself", auth=auth, headers=headers, timeout=10)
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {api_token}'
+            }
+            response = requests.get(f"{base_url}/rest/api/3/myself", headers=headers, timeout=10)
             
             if response.status_code == 200:
                 # Save the config only if connection is successful
@@ -204,14 +206,14 @@ class JiraClient:
         try:
             # Make real API call to Jira
             url = f"{self.base_url}/rest/api/3/issue/{ticket_id}"
-            auth = (self.username, self.api_token)
             headers = {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {self.api_token}'
             }
             
             debug_logger.info(f"Making Jira API call to: {url}")
-            response = requests.get(url, auth=auth, headers=headers, timeout=10)
+            response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
@@ -365,10 +367,10 @@ class JiraClient:
         try:
             # Make real API call to Jira
             url = f"{self.base_url}/rest/api/3/search"
-            auth = (self.username, self.api_token)
             headers = {
                 'Accept': 'application/json',
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {self.api_token}'
             }
             
             payload = {
@@ -378,7 +380,7 @@ class JiraClient:
             }
             
             debug_logger.info(f"Making Jira search API call with JQL: {jql}")
-            response = requests.post(url, auth=auth, headers=headers, json=payload, timeout=10)
+            response = requests.post(url, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()

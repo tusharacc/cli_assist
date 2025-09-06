@@ -72,6 +72,8 @@ def show_log_locations():
     
     print(f"\n📝 Log files are created with timestamps:")
     print(f"   lumos-debug-YYYYMMDD_HHMMSS.log")
+    
+    print(f"\n📖 For complete debugging guide, see: COMPREHENSIVE_DEBUGGING_GUIDE.md")
 
 if __name__ == "__main__":
     print("🚀 Lumos CLI Debug Logging Test")

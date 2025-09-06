@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+"""
+Advanced intent detection using LLM with fallback to regex patterns
+"""
+
+import re
+import json
+from typing import Dict, List, Optional
+from .client import LLMRouter
+from .debug_logger import debug_logger
+
+class IntentDetector:
+    """Advanced intent detection using LLM with regex fallback"""
+    
+    def __init__(self):
+        self.llm_router = LLMRouter()
+        self.regex_patterns = self._load_regex_patterns()
+        
+    def _load_regex_patterns(self) -> Dict[str, List[str]]:
+        """Load regex patterns for fast fallback detection"""
+        return {
+            'github': [
+                r'(github|git hub)\s+(.+)',
+                r'(clone|pull|fetch)\s+(.+)',
+                r'(pr|pull request|pullrequest)\s+(.+)',
+                r'(repository|repo)\s+(.+)',
+                r'(branch|commit|push|merge)\s+(.+)',
+                r'(tusharacc|scimarketplace|microsoft|github\.com)\s+(.+)',
+                r'(.+)/(.+)\s+(pr|pull request|clone|branch)',
+                r'(check|show|list|get)\s+(pr|pull request|repository|repo)\s+(.+)',
+                r'(is there|are there|any)\s+(pr|pull request)\s+(.+)',
+                r'(latest|recent)\s+(commit|pr|pull request)\s+(.+)',
+                r'(give me|get me|show me)\s+(\d+)\s+(latest|last|recent)\s+commits\s+(.+)',
+                r'(give me|get me|show me)\s+(latest|last|recent)\s+commits\s+(.+)',
+                r'(latest|last|recent)\s+commits?\s+(.+)',
+                r'(.+)/(.+)\s+(commits?|commit)',
+                r'(commits?)\s+(.+)',
+                r'(from|in)\s+(.+/.*)\s+(commits?|commit)'
+            ],
+            'jira': [
+                r'\b([A-Z]+-\d+)\b',
+                r'(jira|ticket|sprint|issue|board|project)\s+(.+)',
+                r'(show|get|find|search)\s+(ticket|issue|jira)\s+(.+)'
+            ],
+            'neo4j': [
+                r'(graph|neo4j|database|impact|dependencies?)\s+(.+)',
+                r'(which|what)\s+(repositories?|classes?|functions?)\s+(.+)',
+                r'(impact|affected|dependencies?)\s+(.+)',
+                r'(query|search)\s+(graph|neo4j)\s+(.+)'
+            ],
+            'edit': [
+                r'^(edit|modify|update|change|fix)\s+(.+)',
+                r'^add\s+(.+)\s+to\s+(.+)',
+                r'^(.+)\s+(add|implement|improve)\s+(.+)'
+            ],
+            'review': [
+                r'^(review|check|analyze|examine)\s+(.+)',
+                r'^(code review|review code)\s+(.+)'
+            ],
+            'plan': [
+                r'^(plan|design|architecture)\s+(.+)',
+                r'^(create|build|develop)\s+(.+)'
+            ]
+        }
+    
+    def detect_intent(self, user_input: str) -> Dict:
+        """Detect intent using LLM with regex fallback"""
+        debug_logger.log_function_call("IntentDetector.detect_intent", kwargs={"user_input": user_input})
+        
+        # First try regex patterns for fast detection
+        regex_result = self._detect_with_regex(user_input)
+        if regex_result and regex_result.get('confidence', 0) > 0.8:
+            debug_logger.log_function_return("IntentDetector.detect_intent", f"Regex detected: {regex_result['type']}")
+            return regex_result
+        
+        # Use LLM for complex intent detection
+        llm_result = self._detect_with_llm(user_input)
+        if llm_result:
+            debug_logger.log_function_return("IntentDetector.detect_intent", f"LLM detected: {llm_result['type']}")
+            return llm_result
+        
+        # Fallback to regex with lower confidence
+        if regex_result:
+            debug_logger.log_function_return("IntentDetector.detect_intent", f"Regex fallback: {regex_result['type']}")
+            return regex_result
+        
+        # Default to chat
+        result = {
+            'type': 'chat',
+            'query': user_input,
+            'confidence': 0.5,
+            'method': 'default'
+        }
+        debug_logger.log_function_return("IntentDetector.detect_intent", f"Default: {result['type']}")
+        return result
+    
+    def _detect_with_regex(self, user_input: str) -> Optional[Dict]:
+        """Detect intent using regex patterns"""
+        lower_input = user_input.lower()
+        
+        for intent_type, patterns in self.regex_patterns.items():
+            for pattern in patterns:
+                match = re.search(pattern, lower_input)
+                if match:
+                    confidence = 0.9 if intent_type in ['github', 'jira'] else 0.7
+                    return {
+                        'type': intent_type,
+                        'query': user_input,
+                        'confidence': confidence,
+                        'method': 'regex',
+                        'match': match.groups()
+                    }
+        return None
+    
+    def _detect_with_llm(self, user_input: str) -> Optional[Dict]:
+        """Detect intent using LLM for complex queries"""
+        try:
+            prompt = f"""
+You are an intelligent intent detector for a developer CLI tool. Analyze this user query and determine the most likely intent.
+
+User Query: "{user_input}"
+
+Available intents:
+1. **github** - GitHub operations (commits, PRs, cloning, repository management)
+2. **jira** - Jira ticket operations (view tickets, sprints, issues)
+3. **neo4j** - Graph database queries (impact analysis, dependencies, relationships)
+4. **edit** - Code editing operations (modify files, add features)
+5. **review** - Code review operations (analyze code, check quality)
+6. **plan** - Planning operations (design, architecture, project planning)
+7. **chat** - General conversation or unclear intent
+
+Consider these scenarios:
+- "Get 5 commits from repo X" → github
+- "Show me ticket ABC-123" → jira  
+- "What repositories are affected by changes to class Y?" → neo4j
+- "Edit the login function to add validation" → edit
+- "Review the authentication module" → review
+- "Plan the microservices architecture" → plan
+- "Hello, how are you?" → chat
+
+Return ONLY a JSON object with this exact format:
+{{
+    "type": "intent_name",
+    "confidence": 0.95,
+    "reasoning": "Brief explanation of why this intent was chosen",
+    "extracted_entities": {{
+        "repositories": ["repo1", "repo2"],
+        "tickets": ["ABC-123", "DEF-456"],
+        "classes": ["ClassName1", "ClassName2"],
+        "numbers": [5, 10]
+    }}
+}}
+
+Rules:
+- Choose the most specific intent that matches the query
+- Confidence should be 0.0 to 1.0
+- Extract relevant entities for context
+- If unclear, choose 'chat' with lower confidence
+- Return only the JSON, no other text
+"""
+            
+            messages = [{"role": "user", "content": prompt}]
+            response = self.llm_router.chat(messages)
+            
+            if response:
+                # Clean response - remove backticks, markdown, and extract JSON
+                cleaned_response = response.strip()
+                
+                # Remove markdown code blocks
+                if '```json' in cleaned_response:
+                    cleaned_response = cleaned_response.split('```json')[1].split('```')[0].strip()
+                elif '```' in cleaned_response:
+                    cleaned_response = cleaned_response.split('```')[1].split('```')[0].strip()
+                
+                # Remove any remaining backticks
+                cleaned_response = cleaned_response.replace('`', '').strip()
+                
+                # Parse JSON response
+                try:
+                    result = json.loads(cleaned_response)
+                    result['method'] = 'llm'
+                    result['query'] = user_input
+                    return result
+                except json.JSONDecodeError:
+                    debug_logger.warning(f"Failed to parse LLM intent response: {cleaned_response}")
+                    return None
+                    
+        except Exception as e:
+            debug_logger.warning(f"LLM intent detection failed: {e}")
+            return None
+        
+        return None
+    
+    def detect_workflow_intent(self, user_input: str) -> Dict:
+        """Detect complex workflow intents that span multiple systems"""
+        debug_logger.log_function_call("IntentDetector.detect_workflow_intent", kwargs={"user_input": user_input})
+        
+        # Check for multi-step workflows
+        workflow_patterns = [
+            r'(get|show|fetch).*(commits?|prs?|pull requests?).*jira.*ticket',
+            r'(analyze|check).*(impact|dependencies?).*(graph|neo4j)',
+            r'(jira|ticket).*(description|details).*(graph|neo4j|impact)',
+            r'(commits?|prs?).*(changed|modified).*(classes?|methods?).*(graph|neo4j)'
+        ]
+        
+        lower_input = user_input.lower()
+        for pattern in workflow_patterns:
+            if re.search(pattern, lower_input):
+                result = {
+                    'type': 'workflow',
+                    'query': user_input,
+                    'confidence': 0.9,
+                    'method': 'workflow_pattern',
+                    'workflow_type': 'multi_system',
+                    'systems': self._extract_systems(user_input)
+                }
+                debug_logger.log_function_return("IntentDetector.detect_workflow_intent", f"Workflow detected: {result['systems']}")
+                return result
+        
+        # Fall back to regular intent detection
+        return self.detect_intent(user_input)
+    
+    def _extract_systems(self, user_input: str) -> List[str]:
+        """Extract which systems are involved in the workflow"""
+        systems = []
+        lower_input = user_input.lower()
+        
+        if any(keyword in lower_input for keyword in ['github', 'commit', 'pr', 'pull request', 'repository']):
+            systems.append('github')
+        if any(keyword in lower_input for keyword in ['jira', 'ticket', 'sprint', 'issue']):
+            systems.append('jira')
+        if any(keyword in lower_input for keyword in ['neo4j', 'graph', 'database', 'impact', 'dependencies']):
+            systems.append('neo4j')
+        
+        return systems

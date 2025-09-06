@@ -1631,6 +1631,8 @@ def interactive_mode():
                 _interactive_jenkins(detected_command['query'])
             elif detected_command['type'] == 'jira':
                 _interactive_jira(detected_command['query'])
+            elif detected_command['type'] == 'workflow':
+                _interactive_workflow(detected_command['query'], detected_command)
             elif detected_command['type'] == 'edit':
                 _interactive_edit(detected_command['instruction'], detected_command.get('file'))
             elif detected_command['type'] == 'plan':
@@ -1654,7 +1656,26 @@ def interactive_mode():
             break
 
 def _detect_command_intent(user_input: str) -> dict:
-    """Detect command intent from natural language"""
+    """Detect command intent from natural language using advanced LLM-based detection"""
+    try:
+        from .intent_detector import IntentDetector
+        detector = IntentDetector()
+        
+        # First try workflow detection for complex multi-system queries
+        workflow_result = detector.detect_workflow_intent(user_input)
+        if workflow_result.get('type') == 'workflow':
+            return workflow_result
+        
+        # Fall back to regular intent detection
+        return detector.detect_intent(user_input)
+        
+    except Exception as e:
+        debug_logger.warning(f"Advanced intent detection failed: {e}")
+        # Fall back to simple regex patterns
+        return _detect_command_intent_fallback(user_input)
+
+def _detect_command_intent_fallback(user_input: str) -> dict:
+    """Fallback intent detection using regex patterns"""
     lower_input = user_input.lower()
     
     # GitHub patterns (high priority) - ordered by specificity
@@ -1982,6 +2003,32 @@ def _interactive_jenkins(query: str):
         interactive_jenkins(query)
     except Exception as e:
         console.print(f"[red]Jenkins error: {e}[/red]")
+
+def _interactive_workflow(query: str, intent_data: dict):
+    """Handle complex multi-system workflows"""
+    try:
+        from .workflow_handler import WorkflowHandler
+        
+        console.print(f"[cyan]🔄 Executing multi-system workflow...[/cyan]")
+        console.print(f"[dim]Systems involved: {', '.join(intent_data.get('systems', []))}[/dim]")
+        
+        handler = WorkflowHandler()
+        systems = intent_data.get('systems', [])
+        
+        result = handler.execute_workflow('multi_system', query, systems)
+        
+        if result['success']:
+            console.print(f"[green]✅ Workflow completed successfully![/green]")
+            console.print(f"[dim]Steps completed: {len(result['steps'])}[/dim]")
+            
+            # Display the comprehensive report
+            if 'report' in result:
+                console.print(f"\n{result['report']}")
+        else:
+            console.print(f"[red]❌ Workflow failed: {result.get('error', 'Unknown error')}[/red]")
+            
+    except Exception as e:
+        console.print(f"[red]Workflow error: {e}[/red]")
 
 def _interactive_edit(instruction: str, file_path: str = None):
     """Handle edit command in interactive mode"""

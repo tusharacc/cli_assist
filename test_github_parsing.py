@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Test GitHub query parsing to ensure correct org/repo extraction
+This file is useful for regression testing of GitHub natural language parsing.
 """
 
 import re
@@ -82,6 +83,16 @@ def test_github_parsing(query: str):
             org_name = match.group(2)
             org_repo = f"{org_name}/{repo_name}"
             print(f"✅ Pattern 7 matched: {org_repo}")
+    
+    # Pattern 8: "externaldata in scimarketplace" (simple case)
+    if not org_repo:
+        simple_in_pattern = r'([a-zA-Z0-9_-]+)\s+in\s+([a-zA-Z0-9_-]+)'
+        match = re.search(simple_in_pattern, lower_query)
+        if match:
+            repo_name = match.group(1)
+            org_name = match.group(2)
+            org_repo = f"{org_name}/{repo_name}"
+            print(f"✅ Pattern 8 matched: {org_repo}")
     
     if org_repo:
         print(f"🎯 Final result: {org_repo}")

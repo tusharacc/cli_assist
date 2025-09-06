@@ -237,11 +237,12 @@ class GitHubClient:
                         target_dir: str = None) -> Tuple[bool, str]:
         """Clone repository and return success status and path"""
         try:
-            # Construct clone URL
+            # Construct clone URL using the configured base URL
+            base_url = self.base_url.replace('/api/v3', '').replace('/api', '')
             if self.token:
-                clone_url = f"https://{self.token}@github.com/{org}/{repo}.git"
+                clone_url = f"https://{self.token}@{base_url.replace('https://', '')}/{org}/{repo}.git"
             else:
-                clone_url = f"https://github.com/{org}/{repo}.git"
+                clone_url = f"{base_url}/{org}/{repo}.git"
             
             # Determine target directory
             if not target_dir:

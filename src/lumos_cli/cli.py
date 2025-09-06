@@ -1657,10 +1657,17 @@ def _detect_command_intent(user_input: str) -> dict:
     """Detect command intent from natural language"""
     lower_input = user_input.lower()
     
-    # GitHub patterns (high priority)
+    # GitHub patterns (high priority) - ordered by specificity
     github_patterns = [
+        # Most specific patterns first
+        r'(give me|get me|show me)\s+(\d+)\s+(latest|last|recent)\s+commits\s+(.+)',
+        r'(give me|get me|show me)\s+(latest|last|recent)\s+commits\s+(.+)',
+        r'(latest|last|recent)\s+commits?\s+(.+)',
+        r'(.+)/(.+)\s+(commits?|commit)',
+        r'(commits?)\s+(.+)',
+        r'(from|in)\s+(.+/.*)\s+(commits?|commit)',
+        # General patterns
         r'(github|git hub)\s+(.+)',
-        r'(clone|pull|fetch)\s+(.+)',
         r'(pr|pull request|pullrequest)\s+(.+)',
         r'(repository|repo)\s+(.+)',
         r'(branch|commit|push|merge)\s+(.+)',
@@ -1668,7 +1675,9 @@ def _detect_command_intent(user_input: str) -> dict:
         r'(.+)/(.+)\s+(pr|pull request|clone|branch)',
         r'(check|show|list|get)\s+(pr|pull request|repository|repo)\s+(.+)',
         r'(is there|are there|any)\s+(pr|pull request)\s+(.+)',
-        r'(latest|recent)\s+(commit|pr|pull request)\s+(.+)'
+        r'(latest|recent)\s+(commit|pr|pull request)\s+(.+)',
+        # Clone patterns (less specific, so lower priority)
+        r'(clone|pull|fetch)\s+(.+)'
     ]
     
     for pattern in github_patterns:

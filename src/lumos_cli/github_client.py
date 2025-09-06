@@ -18,9 +18,17 @@ console = Console()
 class GitHubClient:
     """GitHub REST API client for enterprise workflows"""
     
-    def __init__(self, token: str = None, base_url: str = "https://api.github.com"):
-        self.token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, token: str = None, base_url: str = None):
+        # Try to get from config manager first, then environment variables
+        from .github_config_manager import get_github_config
+        config = get_github_config()
+        
+        if config:
+            self.token = token or config.token
+            self.base_url = base_url or config.base_url
+        else:
+            self.token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
+            self.base_url = (base_url or "https://api.github.com").rstrip("/")
         self.session = requests.Session()
         
         if self.token:

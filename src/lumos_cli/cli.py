@@ -2328,29 +2328,25 @@ def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all
 @app.command()
 def github_config():
     """Configure GitHub integration settings"""
-    console.print("[bold cyan]🔧 GitHub Configuration[/bold cyan]")
+    from .github_config_manager import GitHubConfigManager
     
-    # Check current token
-    token = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
-    if token:
-        console.print(f"[green]✅ GITHUB_TOKEN is set[/green]")
-        console.print(f"[dim]Token: {token[:8]}...{token[-4:]}[/dim]")
+    config_manager = GitHubConfigManager()
+    console.print("🔧 GitHub Configuration", style="bold blue")
+    
+    existing_config = config_manager.load_config()
+    if existing_config:
+        console.print(f"✅ Current config: {existing_config.base_url}")
+        console.print(f"   Username: {existing_config.username}")
+        console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
         
-        # Test connection
-        github = GitHubClient()
-        if github.test_connection():
-            console.print("[green]✅ GitHub connection successful[/green]")
-        else:
-            console.print("[red]❌ GitHub connection failed[/red]")
+        if not typer.confirm("Reconfigure GitHub settings?"):
+            return
+    
+    new_config = config_manager.setup_interactive()
+    if new_config:
+        console.print("✅ GitHub configured successfully!")
     else:
-        console.print("[yellow]⚠️  GITHUB_TOKEN not set[/yellow]")
-        console.print("\n[bold]To configure GitHub integration:[/bold]")
-        console.print("1. Go to GitHub → Settings → Developer settings → Personal access tokens")
-        console.print("2. Generate a new token with 'repo' scope")
-        console.print("3. Set the token:")
-        console.print("   [dim]export GITHUB_TOKEN=your_token_here[/dim]")
-        console.print("   [dim]# Or add to your .env file:[/dim]")
-        console.print("   [dim]echo 'GITHUB_TOKEN=your_token_here' >> .env[/dim]")
+        console.print("❌ GitHub configuration failed")
 
 # Jenkins Integration Commands
 @app.command()
@@ -2536,53 +2532,25 @@ def jenkins_analyze_failure(job_path: str, build_number: int):
 @app.command()
 def jenkins_config():
     """Configure Jenkins integration settings"""
-    console.print("[bold cyan]🔧 Jenkins Configuration[/bold cyan]")
+    from .jenkins_config_manager import JenkinsConfigManager
     
-    # Check current configuration
-    jenkins_url = os.getenv("JENKINS_URL")
-    jenkins_token = os.getenv("JENKINS_TOKEN")
-    jenkins_username = os.getenv("JENKINS_USERNAME")
+    config_manager = JenkinsConfigManager()
+    console.print("🔧 Jenkins Configuration", style="bold blue")
     
-    if jenkins_url:
-        console.print(f"[green]✅ JENKINS_URL is set[/green]")
-        console.print(f"[dim]URL: {jenkins_url}[/dim]")
+    existing_config = config_manager.load_config()
+    if existing_config:
+        console.print(f"✅ Current config: {existing_config.url}")
+        console.print(f"   Username: {existing_config.username}")
+        console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
+        
+        if not typer.confirm("Reconfigure Jenkins settings?"):
+            return
+    
+    new_config = config_manager.setup_interactive()
+    if new_config:
+        console.print("✅ Jenkins configured successfully!")
     else:
-        console.print("[yellow]⚠️  JENKINS_URL not set[/yellow]")
-    
-    if jenkins_token:
-        console.print(f"[green]✅ JENKINS_TOKEN is set[/green]")
-        console.print(f"[dim]Token: {jenkins_token[:8]}...{jenkins_token[-4:]}[/dim]")
-    else:
-        console.print("[yellow]⚠️  JENKINS_TOKEN not set[/yellow]")
-    
-    if jenkins_username:
-        console.print(f"[green]✅ JENKINS_USERNAME is set[/green]")
-        console.print(f"[dim]Username: {jenkins_username}[/dim]")
-    else:
-        console.print("[yellow]ℹ️  JENKINS_USERNAME not set (will use 'api')[/yellow]")
-    
-    # Test connection
-    if jenkins_url and jenkins_token:
-        try:
-            from .jenkins_client import JenkinsClient
-            jenkins = JenkinsClient()
-            if jenkins.test_connection():
-                console.print("[green]✅ Jenkins connection successful[/green]")
-            else:
-                console.print("[red]❌ Jenkins connection failed[/red]")
-        except Exception as e:
-            console.print(f"[red]❌ Jenkins connection error: {e}[/red]")
-    else:
-        console.print("\n[bold]To configure Jenkins integration:[/bold]")
-        console.print("1. Get your Jenkins API token from User → Configure → API Token")
-        console.print("2. Set the environment variables:")
-        console.print("   [dim]export JENKINS_URL=https://your-jenkins.com[/dim]")
-        console.print("   [dim]export JENKINS_TOKEN=your_token_here[/dim]")
-        console.print("   [dim]export JENKINS_USERNAME=your_username[/dim]")
-        console.print("   [dim]# Or add to your .env file:[/dim]")
-        console.print("   [dim]echo 'JENKINS_URL=https://your-jenkins.com' >> .env[/dim]")
-        console.print("   [dim]echo 'JENKINS_TOKEN=your_token_here' >> .env[/dim]")
-        console.print("   [dim]echo 'JENKINS_USERNAME=your_username' >> .env[/dim]")
+        console.print("❌ Jenkins configuration failed")
 
 if __name__ == "__main__":
     app()

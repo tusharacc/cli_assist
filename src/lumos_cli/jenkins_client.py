@@ -19,9 +19,18 @@ class JenkinsClient:
     """Jenkins REST API client for enterprise workflows"""
     
     def __init__(self, base_url: str = None, token: str = None, username: str = None):
-        self.base_url = base_url or os.getenv("JENKINS_URL")
-        self.token = token or os.getenv("JENKINS_TOKEN")
-        self.username = username or os.getenv("JENKINS_USERNAME")
+        # Try to get from config manager first, then environment variables
+        from .jenkins_config_manager import get_jenkins_config
+        config = get_jenkins_config()
+        
+        if config:
+            self.base_url = base_url or config.url
+            self.token = token or config.token
+            self.username = username or config.username
+        else:
+            self.base_url = base_url or os.getenv("JENKINS_URL")
+            self.token = token or os.getenv("JENKINS_TOKEN")
+            self.username = username or os.getenv("JENKINS_USERNAME")
         
         if not self.base_url:
             raise ValueError("JENKINS_URL environment variable is required")

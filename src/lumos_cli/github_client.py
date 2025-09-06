@@ -12,13 +12,17 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
+from .debug_logger import get_debug_logger
 
 console = Console()
+debug_logger = get_debug_logger()
 
 class GitHubClient:
     """GitHub REST API client for enterprise workflows"""
     
     def __init__(self, token: str = None, base_url: str = None):
+        debug_logger.log_function_call("GitHubClient.__init__", kwargs={"token": token, "base_url": base_url})
+        
         # Try to get from config manager first, then environment variables
         from .github_config_manager import get_github_config
         config = get_github_config()
@@ -26,9 +30,12 @@ class GitHubClient:
         if config:
             self.token = token or config.token
             self.base_url = base_url or config.base_url
+            debug_logger.info(f"Using config file: base_url={self.base_url}, token={'***' if self.token else 'None'}")
         else:
             self.token = token or os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
             self.base_url = (base_url or "https://api.github.com").rstrip("/")
+            debug_logger.info(f"Using environment variables: base_url={self.base_url}, token={'***' if self.token else 'None'}")
+        
         self.session = requests.Session()
         
         if self.token:
@@ -37,38 +44,92 @@ class GitHubClient:
                 "Accept": "application/vnd.github.v3+json",
                 "User-Agent": "Lumos-CLI/1.0"
             })
+            debug_logger.debug(f"Session headers set: {dict(self.session.headers)}")
+        
+        debug_logger.log_function_return("GitHubClient.__init__", f"base_url={self.base_url}")
     
     def _get_api_endpoint(self, operation: str, **kwargs) -> str:
         """Construct the correct GitHub API endpoint"""
+        debug_logger.log_function_call("GitHubClient._get_api_endpoint", kwargs={"operation": operation, **kwargs})
+        
         # For now, use the standard GitHub REST API v3 endpoints
         # This can be enhanced later with LLM-based construction for custom enterprise APIs
-        return self._get_fallback_endpoint(operation, **kwargs)
+        result = self._get_fallback_endpoint(operation, **kwargs)
+        debug_logger.log_function_return("GitHubClient._get_api_endpoint", result)
+        return result
     
     def _get_fallback_endpoint(self, operation: str, **kwargs) -> str:
         """Fallback to hardcoded endpoints if LLM fails"""
+        debug_logger.log_function_call("GitHubClient._get_fallback_endpoint", kwargs={"operation": operation, **kwargs})
+        
         if operation == "list_pull_requests":
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            endpoint = f"/repos/{org}/{repo}/pulls"
+            debug_logger.debug(f"Constructed list_pull_requests endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         elif operation == "get_pull_request":
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            pr_number = kwargs.get('pr_number', '')
+            endpoint = f"/repos/{org}/{repo}/pulls/{pr_number}"
+            debug_logger.debug(f"Constructed get_pull_request endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         elif operation == "get_repository":
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            endpoint = f"/repos/{org}/{repo}"
+            debug_logger.debug(f"Constructed get_repository endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         elif operation == "get_pull_request_commits":
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}/commits"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            pr_number = kwargs.get('pr_number', '')
+            endpoint = f"/repos/{org}/{repo}/pulls/{pr_number}/commits"
+            debug_logger.debug(f"Constructed get_pull_request_commits endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         elif operation == "get_pull_request_files":
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}/files"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            pr_number = kwargs.get('pr_number', '')
+            endpoint = f"/repos/{org}/{repo}/pulls/{pr_number}/files"
+            debug_logger.debug(f"Constructed get_pull_request_files endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         else:
-            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}"
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            endpoint = f"/repos/{org}/{repo}"
+            debug_logger.debug(f"Constructed default endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
 
     def _make_request(self, endpoint: str, params: Dict = None) -> Dict:
         """Make authenticated request to GitHub API"""
+        debug_logger.log_function_call("GitHubClient._make_request", kwargs={"endpoint": endpoint, "params": params})
+        
         url = f"{self.base_url}{endpoint}"
+        debug_logger.log_url_construction(self.base_url, endpoint, params)
         
         try:
+            debug_logger.debug(f"Making HTTP GET request to: {url}")
             response = self.session.get(url, params=params)
+            debug_logger.debug(f"Response status: {response.status_code}")
+            debug_logger.debug(f"Response headers: {dict(response.headers)}")
+            
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            debug_logger.debug(f"Response JSON keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+            debug_logger.log_function_return("GitHubClient._make_request", f"Success: {len(result) if isinstance(result, list) else 'dict'}")
+            return result
         except requests.exceptions.RequestException as e:
+            debug_logger.error(f"GitHub API Error: {e}")
             console.print(f"[red]GitHub API Error: {e}[/red]")
+            debug_logger.log_function_return("GitHubClient._make_request", "Error")
             return {}
     
     def test_connection(self) -> bool:
@@ -87,15 +148,24 @@ class GitHubClient:
     def list_pull_requests(self, org: str, repo: str, state: str = "open", 
                           head: str = None, base: str = None) -> List[Dict]:
         """List pull requests for a repository"""
+        debug_logger.log_function_call("GitHubClient.list_pull_requests", 
+                                     kwargs={"org": org, "repo": repo, "state": state, "head": head, "base": base})
+        
         params = {"state": state}
         if head:
             params["head"] = f"{org}:{head}"
+            debug_logger.debug(f"Added head parameter: {params['head']}")
         if base:
             params["base"] = base
+            debug_logger.debug(f"Added base parameter: {params['base']}")
+        
+        debug_logger.debug(f"Final params: {params}")
         
         # Use LLM to construct the correct API endpoint
         endpoint = self._get_api_endpoint("list_pull_requests", org=org, repo=repo)
-        return self._make_request(endpoint, params) or []
+        result = self._make_request(endpoint, params) or []
+        debug_logger.log_function_return("GitHubClient.list_pull_requests", f"Found {len(result)} PRs")
+        return result
     
     def get_pull_request(self, org: str, repo: str, pr_number: int) -> Dict:
         """Get specific pull request details"""

@@ -12,13 +12,18 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
+from .debug_logger import get_debug_logger
 
 console = Console()
+debug_logger = get_debug_logger()
 
 class JenkinsClient:
     """Jenkins REST API client for enterprise workflows"""
     
     def __init__(self, base_url: str = None, token: str = None, username: str = None):
+        debug_logger.log_function_call("JenkinsClient.__init__", 
+                                     kwargs={"base_url": base_url, "token": token, "username": username})
+        
         # Try to get from config manager first, then environment variables
         from .jenkins_config_manager import get_jenkins_config
         config = get_jenkins_config()
@@ -27,22 +32,30 @@ class JenkinsClient:
             self.base_url = base_url or config.url
             self.token = token or config.token
             self.username = username or config.username
+            debug_logger.info(f"Using Jenkins config file: base_url={self.base_url}, username={self.username}, token={'***' if self.token else 'None'}")
         else:
             self.base_url = base_url or os.getenv("JENKINS_URL")
             self.token = token or os.getenv("JENKINS_TOKEN")
             self.username = username or os.getenv("JENKINS_USERNAME")
+            debug_logger.info(f"Using Jenkins environment variables: base_url={self.base_url}, username={self.username}, token={'***' if self.token else 'None'}")
         
         if not self.base_url:
+            debug_logger.error("JENKINS_URL environment variable is required")
             raise ValueError("JENKINS_URL environment variable is required")
         if not self.token:
+            debug_logger.error("JENKINS_TOKEN environment variable is required")
             raise ValueError("JENKINS_TOKEN environment variable is required")
         
         # Ensure base URL doesn't end with slash
         self.base_url = self.base_url.rstrip("/")
+        debug_logger.debug(f"Normalized base URL: {self.base_url}")
         
         # Setup session with authentication
         self.session = requests.Session()
         self.session.auth = (self.username or "api", self.token)
+        debug_logger.debug(f"Session auth set: username={self.username or 'api'}")
+        
+        debug_logger.log_function_return("JenkinsClient.__init__", f"base_url={self.base_url}")
         self.session.headers.update({
             "Content-Type": "application/json",
             "Accept": "application/json"
@@ -50,27 +63,49 @@ class JenkinsClient:
     
     def test_connection(self) -> bool:
         """Test Jenkins connection and authentication"""
+        debug_logger.log_function_call("JenkinsClient.test_connection")
+        
+        url = f"{self.base_url}/api/json"
+        debug_logger.debug(f"Testing Jenkins connection: {url}")
+        
         try:
-            response = self.session.get(f"{self.base_url}/api/json")
-            return response.status_code == 200
+            response = self.session.get(url)
+            debug_logger.debug(f"Jenkins connection response: {response.status_code}")
+            success = response.status_code == 200
+            debug_logger.log_function_return("JenkinsClient.test_connection", success)
+            return success
         except Exception as e:
+            debug_logger.error(f"Jenkins connection error: {e}")
             console.print(f"[red]Jenkins connection error: {e}[/red]")
+            debug_logger.log_function_return("JenkinsClient.test_connection", False)
             return False
     
     def get_folder_jobs(self, folder_path: str) -> List[Dict]:
         """Get all jobs in a specific folder"""
+        debug_logger.log_function_call("JenkinsClient.get_folder_jobs", kwargs={"folder_path": folder_path})
+        
         try:
             # Convert folder path to Jenkins API format
             api_path = folder_path.replace("/", "/job/")
             url = f"{self.base_url}/job/{api_path}/api/json"
             
+            debug_logger.debug(f"Jenkins API path: {api_path}")
+            debug_logger.debug(f"Jenkins URL: {url}")
+            
             response = self.session.get(url)
+            debug_logger.debug(f"Jenkins response status: {response.status_code}")
+            
             response.raise_for_status()
             
             data = response.json()
-            return data.get("jobs", [])
+            jobs = data.get("jobs", [])
+            debug_logger.debug(f"Found {len(jobs)} jobs in folder")
+            debug_logger.log_function_return("JenkinsClient.get_folder_jobs", f"Found {len(jobs)} jobs")
+            return jobs
         except Exception as e:
+            debug_logger.error(f"Error getting folder jobs: {e}")
             console.print(f"[red]Error getting folder jobs: {e}[/red]")
+            debug_logger.log_function_return("JenkinsClient.get_folder_jobs", "Error")
             return []
     
     def get_job_info(self, job_path: str) -> Optional[Dict]:

@@ -112,7 +112,34 @@ class JenkinsClient:
             response.raise_for_status()
             
             data = response.json()
+            debug_logger.debug(f"Raw Jenkins API response keys: {list(data.keys())}")
+            debug_logger.debug(f"Full Jenkins API response: {json.dumps(data, indent=2)}")
+            
+            # Handle different Jenkins API response structures
             jobs = data.get("jobs", [])
+            
+            # If no jobs found, check for alternative structures
+            if not jobs:
+                debug_logger.warning("No 'jobs' key found in response, checking alternative structures")
+                
+                # Check if it's a single job (not a folder)
+                if data.get("_class") and "job" in data.get("_class", "").lower():
+                    debug_logger.info("Response appears to be a single job, not a folder")
+                    # Return the job itself as a single-item list
+                    jobs = [{"name": data.get("name", "unknown"), "url": data.get("url", ""), "buildable": data.get("buildable", False)}]
+                else:
+                    # Check for other possible keys
+                    possible_keys = ["children", "items", "results"]
+                    for key in possible_keys:
+                        if key in data and isinstance(data[key], list):
+                            debug_logger.info(f"Found jobs under '{key}' key")
+                            jobs = data[key]
+                            break
+                    
+                    if not jobs:
+                        debug_logger.warning("No jobs found in any expected structure")
+                        debug_logger.debug(f"Available keys: {list(data.keys())}")
+            
             debug_logger.debug(f"Found {len(jobs)} jobs in folder")
             debug_logger.log_function_return("JenkinsClient.get_folder_jobs", f"Found {len(jobs)} jobs")
             return jobs
@@ -124,15 +151,27 @@ class JenkinsClient:
     
     def get_job_info(self, job_path: str) -> Optional[Dict]:
         """Get detailed information about a specific job"""
+        debug_logger.log_function_call("JenkinsClient.get_job_info", kwargs={"job_path": job_path})
+        
         try:
             api_path = job_path.replace("/", "/job/")
             url = f"{self.base_url}/job/{api_path}/api/json"
             
+            debug_logger.debug(f"Job API path: {api_path}")
+            debug_logger.debug(f"Job URL: {url}")
+            
             response = self.session.get(url)
+            debug_logger.debug(f"Job response status: {response.status_code}")
+            
             response.raise_for_status()
             
-            return response.json()
+            data = response.json()
+            debug_logger.debug(f"Job response keys: {list(data.keys())}")
+            debug_logger.debug(f"Job builds count: {len(data.get('builds', []))}")
+            
+            return data
         except Exception as e:
+            debug_logger.error(f"Error getting job info: {e}")
             console.print(f"[red]Error getting job info: {e}[/red]")
             return None
     
@@ -192,21 +231,28 @@ class JenkinsClient:
     
     def get_recent_builds(self, job_path: str, hours: int = 4) -> List[Dict]:
         """Get recent builds for a job within specified hours"""
+        debug_logger.log_function_call("JenkinsClient.get_recent_builds", kwargs={"job_path": job_path, "hours": hours})
+        
         try:
             job_info = self.get_job_info(job_path)
             if not job_info:
+                debug_logger.warning(f"No job info found for {job_path}")
                 return []
             
             builds = job_info.get("builds", [])
+            debug_logger.debug(f"Found {len(builds)} total builds for job {job_path}")
+            
             recent_builds = []
-            
             cutoff_time = datetime.now() - timedelta(hours=hours)
+            debug_logger.debug(f"Cutoff time: {cutoff_time}")
             
-            for build in builds:
+            for i, build in enumerate(builds):
+                debug_logger.debug(f"Processing build {i+1}/{len(builds)}: {build}")
                 build_info = self.get_build_info(job_path, build["number"])
                 if build_info:
                     timestamp = build_info.get("timestamp", 0)
                     build_time = datetime.fromtimestamp(timestamp / 1000)
+                    debug_logger.debug(f"Build {build['number']} time: {build_time}")
                     
                     if build_time >= cutoff_time:
                         recent_builds.append({
@@ -216,9 +262,17 @@ class JenkinsClient:
                             "duration": build_info.get("duration", 0),
                             "url": build_info.get("url", "")
                         })
+                        debug_logger.debug(f"Added build {build['number']} to recent builds")
+                    else:
+                        debug_logger.debug(f"Build {build['number']} too old, skipping")
+                else:
+                    debug_logger.warning(f"Could not get build info for {build['number']}")
             
+            debug_logger.debug(f"Found {len(recent_builds)} recent builds")
+            debug_logger.log_function_return("JenkinsClient.get_recent_builds", f"Found {len(recent_builds)} recent builds")
             return recent_builds
         except Exception as e:
+            debug_logger.error(f"Error getting recent builds: {e}")
             console.print(f"[red]Error getting recent builds: {e}[/red]")
             return []
     

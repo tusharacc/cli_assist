@@ -86,17 +86,35 @@ class JiraConfigManager:
             response = requests.get(f"{base_url}/rest/api/latest/myself", headers=headers, timeout=10)
             
             if response.status_code == 200:
-                # Save the config only if connection is successful
-                self.save_config(config)
+                # Check if response is actually JSON
+                content_type = response.headers.get('content-type', '').lower()
+                if 'application/json' not in content_type:
+                    console.print(f"❌ Jira connection failed: Server returned HTML instead of JSON")
+                    console.print(f"   Content-Type: {content_type}")
+                    console.print(f"   Response preview: {response.text[:200]}...")
+                    console.print("   This usually indicates API version incompatibility or authentication issues")
+                    return None
                 
-                console.print("✅ Jira configured successfully!")
-                console.print(f"   Base URL: {base_url}")
-                console.print(f"   Username: {username}")
-                
-                return config
+                try:
+                    # Try to parse JSON to ensure it's valid
+                    data = response.json()
+                    # Save the config only if connection is successful
+                    self.save_config(config)
+                    
+                    console.print("✅ Jira configured successfully!")
+                    console.print(f"   Base URL: {base_url}")
+                    console.print(f"   Username: {username}")
+                    
+                    return config
+                except ValueError as e:
+                    console.print(f"❌ Jira connection failed: Invalid JSON response")
+                    console.print(f"   Error: {e}")
+                    console.print(f"   Response content: {response.text[:200]}...")
+                    console.print("   This usually indicates API version incompatibility")
+                    return None
             else:
                 console.print(f"❌ Jira connection failed: HTTP {response.status_code}")
-                console.print(f"   Response: {response.text}")
+                console.print(f"   Response: {response.text[:200]}...")
                 console.print("Please check your credentials and try again")
                 return None
             
@@ -216,18 +234,34 @@ class JiraClient:
             response = requests.get(url, headers=headers, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                ticket = self._parse_jira_ticket(data)
-                debug_logger.log_function_return("JiraClient.get_ticket", f"Retrieved real ticket {ticket_id}")
-                return ticket
+                # Check if response is actually JSON
+                content_type = response.headers.get('content-type', '').lower()
+                if 'application/json' not in content_type:
+                    debug_logger.error(f"Jira API returned non-JSON response (content-type: {content_type})")
+                    debug_logger.error(f"Response preview: {response.text[:200]}...")
+                    return None
+                
+                try:
+                    data = response.json()
+                    ticket = self._parse_jira_ticket(data)
+                    debug_logger.log_function_return("JiraClient.get_ticket", f"Retrieved real ticket {ticket_id}")
+                    return ticket
+                except ValueError as e:
+                    debug_logger.error(f"Failed to parse JSON response: {e}")
+                    debug_logger.error(f"Response content: {response.text[:500]}...")
+                    return None
             elif response.status_code == 404:
                 debug_logger.warning(f"Ticket {ticket_id} not found")
                 return None
             elif response.status_code == 401:
                 debug_logger.error(f"Jira authentication failed: Invalid credentials")
                 return None
+            elif response.status_code == 403:
+                debug_logger.error(f"Jira access forbidden: Check permissions or API version compatibility")
+                return None
             else:
                 debug_logger.error(f"Jira API error: {response.status_code}")
+                debug_logger.error(f"Response content: {response.text[:200]}...")
                 return None
                 
         except Exception as e:
@@ -383,21 +417,37 @@ class JiraClient:
             response = requests.post(url, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
-                data = response.json()
-                issues = data.get('issues', [])
-                tickets = []
+                # Check if response is actually JSON
+                content_type = response.headers.get('content-type', '').lower()
+                if 'application/json' not in content_type:
+                    debug_logger.error(f"Jira search API returned non-JSON response (content-type: {content_type})")
+                    debug_logger.error(f"Response preview: {response.text[:200]}...")
+                    return []
                 
-                for issue in issues:
-                    ticket = self._parse_jira_ticket(issue)
-                    tickets.append(ticket)
-                
-                debug_logger.log_function_return("JiraClient._search_tickets_impl", f"Found {len(tickets)} real tickets")
-                return tickets
+                try:
+                    data = response.json()
+                    issues = data.get('issues', [])
+                    tickets = []
+                    
+                    for issue in issues:
+                        ticket = self._parse_jira_ticket(issue)
+                        tickets.append(ticket)
+                    
+                    debug_logger.log_function_return("JiraClient._search_tickets_impl", f"Found {len(tickets)} real tickets")
+                    return tickets
+                except ValueError as e:
+                    debug_logger.error(f"Failed to parse JSON response: {e}")
+                    debug_logger.error(f"Response content: {response.text[:500]}...")
+                    return []
             elif response.status_code == 401:
                 debug_logger.error(f"Jira authentication failed: Invalid credentials")
                 return []
+            elif response.status_code == 403:
+                debug_logger.error(f"Jira access forbidden: Check permissions or API version compatibility")
+                return []
             else:
                 debug_logger.error(f"Jira search API error: {response.status_code}")
+                debug_logger.error(f"Response content: {response.text[:200]}...")
                 return []
                 
         except Exception as e:

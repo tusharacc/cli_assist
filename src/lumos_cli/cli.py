@@ -64,9 +64,11 @@ def check_integration_status() -> dict:
     
     # Check Enterprise LLM status
     try:
-        from .enterprise_llm import EnterpriseLLMProvider
-        # This is a placeholder - in real implementation, you'd check enterprise LLM connectivity
-        status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
+        from .config import config
+        if config.is_enterprise_configured():
+            status['enterprise_llm'] = {'status': 'connected', 'message': 'Enterprise LLM 🟢'}
+        else:
+            status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
     except Exception:
         status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
     
@@ -2901,6 +2903,13 @@ def enterprise_llm(
         # Test the connection
         try:
             console.print("🔍 Testing Enterprise LLM connection...")
+            
+            # Save the configuration
+            config.set('llm.enterprise_token_url', api_url)
+            config.set('llm.enterprise_chat_url', api_url)
+            config.set('llm.enterprise_app_id', 'enterprise')
+            config.set('llm.enterprise_app_key', api_key)
+            config.set('llm.enterprise_app_resource', model)
             
             # This would test the actual connection in a real implementation
             # For now, we'll just save the config

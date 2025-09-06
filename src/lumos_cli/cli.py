@@ -41,6 +41,96 @@ def get_persona_manager() -> PersonaManager:
         persona_manager = PersonaManager()
     return persona_manager
 
+def check_integration_status() -> dict:
+    """Check status of all integrations"""
+    status = {
+        'ollama': {'status': 'unknown', 'message': 'Unknown'},
+        'enterprise_llm': {'status': 'unknown', 'message': 'Unknown'},
+        'github': {'status': 'unknown', 'message': 'Unknown'},
+        'jenkins': {'status': 'unknown', 'message': 'Unknown'},
+        'jira': {'status': 'unknown', 'message': 'Unknown'}
+    }
+    
+    # Check Ollama status
+    try:
+        from .client import LLMRouter
+        router = LLMRouter("auto", "ollama")
+        # Try a simple test to see if Ollama is responding
+        test_response = router.chat("test", "ollama", "llama3.2:latest")
+        if test_response and "error" not in test_response.lower():
+            status['ollama'] = {'status': 'connected', 'message': 'Ollama 🟢'}
+        else:
+            status['ollama'] = {'status': 'error', 'message': 'Ollama 🔴'}
+    except Exception:
+        status['ollama'] = {'status': 'error', 'message': 'Ollama 🔴'}
+    
+    # Check Enterprise LLM status
+    try:
+        from .enterprise_llm import EnterpriseLLMProvider
+        # This is a placeholder - in real implementation, you'd check enterprise LLM connectivity
+        status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
+    except Exception:
+        status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
+    
+    # Check GitHub status
+    try:
+        from .github_client import GitHubClient
+        github_client = GitHubClient()
+        if github_client.token and github_client.base_url:
+            # Try to make a simple API call to test connectivity
+            import requests
+            headers = {'Authorization': f'token {github_client.token}'}
+            response = requests.get(f"{github_client.base_url}/user", headers=headers, timeout=5)
+            if response.status_code == 200:
+                status['github'] = {'status': 'connected', 'message': 'GitHub 🟢'}
+            else:
+                status['github'] = {'status': 'error', 'message': 'GitHub 🔴'}
+        else:
+            status['github'] = {'status': 'not_configured', 'message': 'GitHub ⚪'}
+    except Exception:
+        status['github'] = {'status': 'error', 'message': 'GitHub 🔴'}
+    
+    # Check Jenkins status
+    try:
+        from .jenkins_config_manager import JenkinsConfigManager
+        config_manager = JenkinsConfigManager()
+        config = config_manager.load_config()
+        if config and config.url and config.username and config.token:
+            # Try to make a simple API call to test connectivity
+            import requests
+            auth = (config.username, config.token)
+            response = requests.get(f"{config.url}/api/json", auth=auth, timeout=5)
+            if response.status_code == 200:
+                status['jenkins'] = {'status': 'connected', 'message': 'Jenkins 🟢'}
+            else:
+                status['jenkins'] = {'status': 'error', 'message': 'Jenkins 🔴'}
+        else:
+            status['jenkins'] = {'status': 'not_configured', 'message': 'Jenkins ⚪'}
+    except Exception:
+        status['jenkins'] = {'status': 'error', 'message': 'Jenkins 🔴'}
+    
+    # Check Jira status
+    try:
+        from .jira_client import JiraConfigManager
+        config_manager = JiraConfigManager()
+        config = config_manager.get_config()
+        if config and config.get('base_url') and config.get('username') and config.get('api_token'):
+            # Try to make a simple API call to test connectivity
+            import requests
+            auth = (config['username'], config['api_token'])
+            headers = {'Accept': 'application/json'}
+            response = requests.get(f"{config['base_url']}/rest/api/3/myself", auth=auth, headers=headers, timeout=5)
+            if response.status_code == 200:
+                status['jira'] = {'status': 'connected', 'message': 'Jira 🟢'}
+            else:
+                status['jira'] = {'status': 'error', 'message': 'Jira 🔴'}
+        else:
+            status['jira'] = {'status': 'not_configured', 'message': 'Jira ⚪'}
+    except Exception:
+        status['jira'] = {'status': 'error', 'message': 'Jira 🔴'}
+    
+    return status
+
 @app.callback()
 def main(ctx: typer.Context):
     """🌟 Lumos CLI - Interactive AI Code Assistant
@@ -1554,6 +1644,29 @@ def interactive_mode():
     # Clear screen and show beautiful header
     console.clear()
     create_header(console, subtitle="Interactive AI Assistant")
+    
+    # Check and display integration status
+    integration_status = check_integration_status()
+    
+    # Create integration status display
+    status_table = Table(show_header=False, box=box.ROUNDED, padding=(0, 1))
+    status_table.add_column(style="bold blue", width=20)
+    status_table.add_column(style="bold blue", width=20)
+    status_table.add_column(style="bold blue", width=20)
+    status_table.add_column(style="bold blue", width=20)
+    status_table.add_column(style="bold blue", width=20)
+    
+    # Add status row
+    status_table.add_row(
+        integration_status['ollama']['message'],
+        integration_status['enterprise_llm']['message'],
+        integration_status['github']['message'],
+        integration_status['jenkins']['message'],
+        integration_status['jira']['message']
+    )
+    
+    console.print(status_table)
+    console.print()
     
     # Show welcome panel with project info
     project_info = {

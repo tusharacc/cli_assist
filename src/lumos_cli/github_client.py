@@ -38,6 +38,27 @@ class GitHubClient:
                 "User-Agent": "Lumos-CLI/1.0"
             })
     
+    def _get_api_endpoint(self, operation: str, **kwargs) -> str:
+        """Construct the correct GitHub API endpoint"""
+        # For now, use the standard GitHub REST API v3 endpoints
+        # This can be enhanced later with LLM-based construction for custom enterprise APIs
+        return self._get_fallback_endpoint(operation, **kwargs)
+    
+    def _get_fallback_endpoint(self, operation: str, **kwargs) -> str:
+        """Fallback to hardcoded endpoints if LLM fails"""
+        if operation == "list_pull_requests":
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls"
+        elif operation == "get_pull_request":
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}"
+        elif operation == "get_repository":
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}"
+        elif operation == "get_pull_request_commits":
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}/commits"
+        elif operation == "get_pull_request_files":
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}/pulls/{kwargs.get('pr_number', '')}/files"
+        else:
+            return f"/repos/{kwargs.get('org', '')}/{kwargs.get('repo', '')}"
+
     def _make_request(self, endpoint: str, params: Dict = None) -> Dict:
         """Make authenticated request to GitHub API"""
         url = f"{self.base_url}{endpoint}"
@@ -60,7 +81,8 @@ class GitHubClient:
     
     def get_repository_info(self, org: str, repo: str) -> Dict:
         """Get repository information"""
-        return self._make_request(f"/repos/{org}/{repo}")
+        endpoint = self._get_api_endpoint("get_repository", org=org, repo=repo)
+        return self._make_request(endpoint)
     
     def list_pull_requests(self, org: str, repo: str, state: str = "open", 
                           head: str = None, base: str = None) -> List[Dict]:
@@ -70,20 +92,25 @@ class GitHubClient:
             params["head"] = f"{org}:{head}"
         if base:
             params["base"] = base
-            
-        return self._make_request(f"/repos/{org}/{repo}/pulls", params) or []
+        
+        # Use LLM to construct the correct API endpoint
+        endpoint = self._get_api_endpoint("list_pull_requests", org=org, repo=repo)
+        return self._make_request(endpoint, params) or []
     
     def get_pull_request(self, org: str, repo: str, pr_number: int) -> Dict:
         """Get specific pull request details"""
-        return self._make_request(f"/repos/{org}/{repo}/pulls/{pr_number}")
+        endpoint = self._get_api_endpoint("get_pull_request", org=org, repo=repo, pr_number=pr_number)
+        return self._make_request(endpoint)
     
     def get_pull_request_commits(self, org: str, repo: str, pr_number: int) -> List[Dict]:
         """Get commits for a pull request"""
-        return self._make_request(f"/repos/{org}/{repo}/pulls/{pr_number}/commits") or []
+        endpoint = self._get_api_endpoint("get_pull_request_commits", org=org, repo=repo, pr_number=pr_number)
+        return self._make_request(endpoint) or []
     
     def get_pull_request_files(self, org: str, repo: str, pr_number: int) -> List[Dict]:
         """Get files changed in a pull request"""
-        return self._make_request(f"/repos/{org}/{repo}/pulls/{pr_number}/files") or []
+        endpoint = self._get_api_endpoint("get_pull_request_files", org=org, repo=repo, pr_number=pr_number)
+        return self._make_request(endpoint) or []
     
     def clone_repository(self, org: str, repo: str, branch: str = None, 
                         target_dir: str = None) -> Tuple[bool, str]:

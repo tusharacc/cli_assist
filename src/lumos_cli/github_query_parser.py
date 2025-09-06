@@ -85,6 +85,15 @@ class GitHubQueryParser:
                 repo_name = match.group(2)
                 org_repo = f"{org_name}/{repo_name}"
         
+        # Pattern 4.5: "repository X under org Y" (specific case for your query)
+        if not org_repo:
+            repo_under_org_pattern = r'repository\s+([a-zA-Z0-9_-]+)\s+under\s+org\s+([a-zA-Z0-9_-]+)'
+            match = re.search(repo_under_org_pattern, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
         # Pattern 5: Simple format "github org repo"
         if not org_repo:
             words = query.split()
@@ -146,12 +155,15 @@ class GitHubQueryParser:
 You are a GitHub query parser. Extract the organization and repository from this query: "{query}"
 
 Think step by step:
-1. Look for organization name (usually comes before repository)
-2. Look for repository name (usually comes after organization)
-3. Consider context clues like "in organization", "repository", "org"
-4. Make your best guess if unclear
+1. Look for organization name (usually comes after "org" or "organization")
+2. Look for repository name (usually comes after "repository" or "repo")
+3. Consider context clues like "in organization", "repository", "org", "under org"
+4. Look for commit-related keywords like "commits", "latest commit", "last 5 commits"
+5. Make your best guess if unclear
 
-Return ONLY a JSON object with this exact format:
+IMPORTANT: Return ONLY a valid JSON object, no markdown, no backticks, no extra text.
+
+Format:
 {{
     "organization": "org_name",
     "repository": "repo_name",
@@ -162,7 +174,7 @@ Rules:
 - Extract the organization name and repository name
 - If unclear, make your best guess
 - Confidence should be 0.0 to 1.0
-- Return only the JSON, no other text
+- Return ONLY the JSON object, no markdown formatting
 - If you cannot extract both, return null
 """
                     
@@ -170,15 +182,27 @@ Rules:
                     response = self.llm_router.chat(messages)
                     
                     if response:
+                        # Clean response - remove backticks, markdown, and extract JSON
+                        cleaned_response = response.strip()
+                        
+                        # Remove markdown code blocks
+                        if '```json' in cleaned_response:
+                            cleaned_response = cleaned_response.split('```json')[1].split('```')[0].strip()
+                        elif '```' in cleaned_response:
+                            cleaned_response = cleaned_response.split('```')[1].split('```')[0].strip()
+                        
+                        # Remove any remaining backticks
+                        cleaned_response = cleaned_response.replace('`', '').strip()
+                        
                         # Try to parse JSON response
                         try:
-                            result = json.loads(response.strip())
+                            result = json.loads(cleaned_response)
                             if result and 'organization' in result and 'repository' in result:
                                 result['org_repo'] = f"{result['organization']}/{result['repository']}"
                                 result['method'] = f'llm_{model.replace(":", "_")}'
                                 return result
                         except json.JSONDecodeError:
-                            self.debug_logger.warning(f"Failed to parse LLM JSON response from {model}: {response}")
+                            self.debug_logger.warning(f"Failed to parse LLM JSON response from {model}: {cleaned_response}")
                             continue
                     
                 except Exception as e:

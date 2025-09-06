@@ -17,6 +17,7 @@ from .config import config, setup_wizard
 from .ui import create_header, create_welcome_panel, create_command_help_panel, create_status_panel, create_config_panel, print_brand_footer
 from .shell_executor import execute_shell_command
 from .github_client import GitHubClient
+from .github_query_parser import GitHubQueryParser
 import re
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
@@ -1870,92 +1871,32 @@ def _show_interactive_help():
 """)
 
 def _interactive_github(query: str):
-    """Handle GitHub commands in interactive mode"""
+    """Handle GitHub commands in interactive mode using hybrid parsing"""
     try:
-        # Parse the GitHub query to determine action
-        lower_query = query.lower()
+        # Use hybrid parser (text patterns + LLM)
+        parser = GitHubQueryParser()
+        result = parser.parse_query(query)
         
-        # Extract organization and repository from common patterns
-        org_repo = None
-        
-        # Pattern 1: "tusharacc/cli_assist" or "scimarketplace/externaldata" (exact format)
-        org_repo_pattern = r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)'
-        match = re.search(org_repo_pattern, query)
-        if match:
-            org_repo = f"{match.group(1)}/{match.group(2)}"
-        
-        # Pattern 2: "repository externaldata in organization scimarketplace" (most specific)
-        if not org_repo:
-            repo_org_pattern = r'repository\s+([a-zA-Z0-9_-]+)\s+in\s+organization\s+([a-zA-Z0-9_-]+)'
-            match = re.search(repo_org_pattern, lower_query)
-            if match:
-                repo_name = match.group(1)
-                org_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        # Pattern 3: "for repository externaldata in organization scimarketplace"
-        if not org_repo:
-            for_repo_org_pattern = r'for\s+repository\s+([a-zA-Z0-9_-]+)\s+in\s+organization\s+([a-zA-Z0-9_-]+)'
-            match = re.search(for_repo_org_pattern, lower_query)
-            if match:
-                repo_name = match.group(1)
-                org_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        # Pattern 4: "organization scimarketplace repository externaldata"
-        if not org_repo:
-            org_repo_pattern2 = r'organization\s+([a-zA-Z0-9_-]+)\s+repository\s+([a-zA-Z0-9_-]+)'
-            match = re.search(org_repo_pattern2, lower_query)
-            if match:
-                org_name = match.group(1)
-                repo_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        # Pattern 5: "github tusharacc cli_assist" or "repository scimarketplace externaldata" (simple format)
-        if not org_repo:
-            words = query.split()
-            if len(words) >= 3:
-                for i, word in enumerate(words):
-                    if word.lower() in ['github', 'repository', 'repo'] and i + 2 < len(words):
-                        # Make sure the next two words don't contain "in" or "organization"
-                        next_words = words[i+1:i+3]
-                        if not any(w.lower() in ['in', 'organization', 'org'] for w in next_words):
-                            org_repo = f"{words[i+1]}/{words[i+2]}"
-                            break
-        
-        # Pattern 6: "for externaldata in scimarketplace" or "externaldata in scimarketplace"
-        if not org_repo:
-            simple_pattern = r'for\s+([a-zA-Z0-9_-]+)\s+in\s+([a-zA-Z0-9_-]+)'
-            match = re.search(simple_pattern, lower_query)
-            if match:
-                repo_name = match.group(1)
-                org_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        # Pattern 7: "externaldata repo in scimarketplace org"
-        if not org_repo:
-            repo_org_simple = r'([a-zA-Z0-9_-]+)\s+repo\s+in\s+([a-zA-Z0-9_-]+)\s+org'
-            match = re.search(repo_org_simple, lower_query)
-            if match:
-                repo_name = match.group(1)
-                org_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        # Pattern 8: "externaldata in scimarketplace" (simple case)
-        if not org_repo:
-            simple_in_pattern = r'([a-zA-Z0-9_-]+)\s+in\s+([a-zA-Z0-9_-]+)'
-            match = re.search(simple_in_pattern, lower_query)
-            if match:
-                repo_name = match.group(1)
-                org_name = match.group(2)
-                org_repo = f"{org_name}/{repo_name}"
-        
-        if not org_repo:
+        if not result or not result.get('org_repo'):
             console.print("[yellow]Could not detect organization/repository from your query.[/yellow]")
             console.print("[dim]Try: 'github tusharacc/cli_assist' or 'check PRs for scimarketplace/externaldata'[/dim]")
             return
         
+        org_repo = result['org_repo']
+        method = result.get('method', 'unknown')
+        confidence = result.get('confidence', 0.0)
+        agreement = result.get('agreement', False)
+        
+        # Show parsing method and confidence for debugging
+        if confidence < 0.7:
+            console.print(f"[dim]Parsed using {method} (confidence: {confidence:.2f})[/dim]")
+        if agreement:
+            console.print("[dim]✓ Text and LLM parsing agreed[/dim]")
+        
         # Determine action based on keywords
+        lower_query = query.lower()
+        words = query.split()
+        
         if any(keyword in lower_query for keyword in ['pr', 'pull request', 'pullrequest']):
             if any(keyword in lower_query for keyword in ['branch', 'rc1', 'main', 'develop']):
                 # Extract branch name
@@ -1986,10 +1927,26 @@ def _interactive_github(query: str):
             console.print(f"[cyan]🔍 Cloning {org_repo}...[/cyan]")
             github_clone(org_repo, branch=branch)
             
-        elif any(keyword in lower_query for keyword in ['latest', 'recent', 'commit']):
-            console.print(f"[cyan]🔍 Getting latest commit info for {org_repo}...[/cyan]")
-            # This would require implementing a commit command
-            console.print("[yellow]Commit details feature coming soon![/yellow]")
+        elif any(keyword in lower_query for keyword in ['commit', 'commits']):
+            # Handle commit-related queries
+            if any(keyword in lower_query for keyword in ['latest', 'last', 'recent']):
+                # Extract count if specified
+                count = 1
+                for word in words:
+                    if word.isdigit():
+                        count = int(word)
+                        break
+                
+                if count == 1:
+                    console.print(f"[cyan]🔍 Getting latest commit from {org_repo}...[/cyan]")
+                    github_commits(org_repo, latest=True)
+                else:
+                    console.print(f"[cyan]🔍 Getting last {count} commits from {org_repo}...[/cyan]")
+                    github_commits(org_repo, count=count)
+            else:
+                # Default to showing last 5 commits
+                console.print(f"[cyan]🔍 Getting last 5 commits from {org_repo}...[/cyan]")
+                github_commits(org_repo, count=5)
             
         else:
             # Default to listing PRs
@@ -2382,6 +2339,65 @@ def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all
             
     except Exception as e:
         console.print(f"[red]GitHub PR error: {e}[/red]")
+
+@app.command()
+def github_commits(org_repo: str, branch: str = None, count: int = 5, latest: bool = False, commit_sha: str = None):
+    """List commits for a GitHub repository
+    
+    Examples:
+        lumos-cli github-commits scimarketplace/externaldata --count 10
+        lumos-cli github-commits scimarketplace/externaldata --branch RC1 --count 5
+        lumos-cli github-commits scimarketplace/externaldata --latest
+        lumos-cli github-commits scimarketplace/externaldata --commit abc1234
+    """
+    try:
+        # Parse org/repo
+        if '/' not in org_repo:
+            console.print("[red]Please provide repository in format 'org/repo'[/red]")
+            return
+            
+        org, repo = org_repo.split('/', 1)
+        
+        # Initialize GitHub client
+        from .github_client import GitHubClient
+        client = GitHubClient()
+        
+        if not client.test_connection():
+            console.print("[red]GitHub connection failed. Please check your configuration.[/red]")
+            return
+        
+        if commit_sha:
+            # Get specific commit
+            console.print(f"[cyan]🔍 Getting commit {commit_sha} from {org_repo}...[/cyan]")
+            commit = client.get_commit(org, repo, commit_sha)
+            if commit:
+                console.print(client.format_commit_summary(commit))
+            else:
+                console.print("[yellow]Commit not found[/yellow]")
+                
+        elif latest:
+            # Get latest commit
+            console.print(f"[cyan]🔍 Getting latest commit from {org_repo}...[/cyan]")
+            commit = client.get_latest_commit(org, repo, branch)
+            if commit:
+                console.print(client.format_commit_summary(commit))
+            else:
+                console.print("[yellow]No commits found[/yellow]")
+                
+        else:
+            # List commits
+            console.print(f"[cyan]🔍 Listing {count} commits from {org_repo}...[/cyan]")
+            if branch:
+                console.print(f"[dim]Branch: {branch}[/dim]")
+            
+            commits = client.list_commits(org, repo, branch, per_page=count)
+            if commits:
+                client.display_commits_table(commits)
+            else:
+                console.print("[yellow]No commits found[/yellow]")
+            
+    except Exception as e:
+        console.print(f"[red]GitHub commits error: {e}[/red]")
 
 @app.command()
 def github_config():

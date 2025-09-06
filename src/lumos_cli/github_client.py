@@ -100,6 +100,21 @@ class GitHubClient:
             debug_logger.debug(f"Constructed get_pull_request_files endpoint: {endpoint}")
             debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
             return endpoint
+        elif operation == "list_commits":
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            endpoint = f"/repos/{org}/{repo}/commits"
+            debug_logger.debug(f"Constructed list_commits endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
+        elif operation == "get_commit":
+            org = kwargs.get('org', '')
+            repo = kwargs.get('repo', '')
+            commit_sha = kwargs.get('commit_sha', '')
+            endpoint = f"/repos/{org}/{repo}/commits/{commit_sha}"
+            debug_logger.debug(f"Constructed get_commit endpoint: {endpoint}")
+            debug_logger.log_function_return("GitHubClient._get_fallback_endpoint", endpoint)
+            return endpoint
         else:
             org = kwargs.get('org', '')
             repo = kwargs.get('repo', '')
@@ -181,6 +196,42 @@ class GitHubClient:
         """Get files changed in a pull request"""
         endpoint = self._get_api_endpoint("get_pull_request_files", org=org, repo=repo, pr_number=pr_number)
         return self._make_request(endpoint) or []
+    
+    def list_commits(self, org: str, repo: str, branch: str = None, 
+                    per_page: int = 30, page: int = 1) -> List[Dict]:
+        """List commits for a repository"""
+        debug_logger.log_function_call("GitHubClient.list_commits", kwargs={"org": org, "repo": repo, "branch": branch, "per_page": per_page, "page": page})
+        
+        endpoint = self._get_api_endpoint("list_commits", org=org, repo=repo, branch=branch)
+        params = {"per_page": per_page, "page": page}
+        if branch:
+            params["sha"] = branch
+            
+        result = self._make_request(endpoint, params)
+        debug_logger.log_function_return("GitHubClient.list_commits", f"Found {len(result)} commits")
+        return result
+    
+    def get_commit(self, org: str, repo: str, commit_sha: str) -> Dict:
+        """Get specific commit details"""
+        debug_logger.log_function_call("GitHubClient.get_commit", kwargs={"org": org, "repo": repo, "commit_sha": commit_sha})
+        endpoint = self._get_api_endpoint("get_commit", org=org, repo=repo, commit_sha=commit_sha)
+        result = self._make_request(endpoint)
+        debug_logger.log_function_return("GitHubClient.get_commit", f"Commit: {result.get('sha', 'unknown')[:7]}")
+        return result
+    
+    def get_latest_commit(self, org: str, repo: str, branch: str = None) -> Dict:
+        """Get the latest commit for a repository or branch"""
+        debug_logger.log_function_call("GitHubClient.get_latest_commit", kwargs={"org": org, "repo": repo, "branch": branch})
+        
+        # Get the latest commit from the default branch or specified branch
+        commits = self.list_commits(org, repo, branch, per_page=1)
+        if commits:
+            latest_commit = commits[0]
+            debug_logger.log_function_return("GitHubClient.get_latest_commit", f"Latest commit: {latest_commit.get('sha', 'unknown')[:7]}")
+            return latest_commit
+        else:
+            debug_logger.log_function_return("GitHubClient.get_latest_commit", "No commits found")
+            return {}
     
     def clone_repository(self, org: str, repo: str, branch: str = None, 
                         target_dir: str = None) -> Tuple[bool, str]:
@@ -267,6 +318,67 @@ class GitHubClient:
                 f"[{state_color}]{pr['state']}[/{state_color}]",
                 pr['created_at'][:10],
                 f"{pr['head']['ref']} → {pr['base']['ref']}"
+            )
+        
+        console.print(table)
+    
+    def format_commit_summary(self, commit: Dict) -> str:
+        """Format commit details for display"""
+        sha = commit.get('sha', 'unknown')[:7]
+        author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
+        date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+        message = commit.get('commit', {}).get('message', 'No message').split('\n')[0]
+        
+        # Get stats if available
+        stats = commit.get('stats', {})
+        additions = stats.get('additions', 0)
+        deletions = stats.get('deletions', 0)
+        files_changed = stats.get('total', 0)
+        
+        summary = f"""
+🔹 Commit: {sha}
+👤 Author: {author}
+📅 Date: {date}
+📝 Message: {message}
+📊 Changes: +{additions} -{deletions} ({files_changed} files)
+"""
+        return summary.strip()
+    
+    def display_commits_table(self, commits: List[Dict]):
+        """Display commits in a table format"""
+        if not commits:
+            console.print("[yellow]No commits found[/yellow]")
+            return
+        
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("SHA", style="dim", width=8)
+        table.add_column("Message", style="cyan", min_width=40)
+        table.add_column("Author", style="green", width=15)
+        table.add_column("Date", style="dim", width=12)
+        table.add_column("Changes", style="blue", width=12)
+        
+        for commit in commits:
+            sha = commit.get('sha', 'unknown')[:7]
+            message = commit.get('commit', {}).get('message', 'No message').split('\n')[0]
+            author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
+            date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+            
+            # Get stats
+            stats = commit.get('stats', {})
+            additions = stats.get('additions', 0)
+            deletions = stats.get('deletions', 0)
+            changes = f"+{additions} -{deletions}"
+            
+            # Truncate long messages
+            if len(message) > 50:
+                message = message[:47] + "..."
+            
+            table.add_row(
+                sha,
+                message,
+                author,
+                date,
+                changes
             )
         
         console.print(table)

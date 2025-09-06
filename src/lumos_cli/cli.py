@@ -1539,7 +1539,7 @@ def jira(
         
         existing_config = config_manager.load_config()
         if existing_config:
-            console.print(f"✅ Current config: {existing_config.base_url}")
+            console.print(f"✅ Current config: {existing_config.get('base_url', 'Not set')}")
             if not typer.confirm("Reconfigure JIRA settings?"):
                 return
         

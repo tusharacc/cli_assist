@@ -75,19 +75,28 @@ class JiraConfigManager:
         
         # Test connection
         try:
-            client = JiraClient(base_url, username, api_token)
-            
-            # Try to get a test ticket (this will fail gracefully if no tickets exist)
             console.print("🔍 Testing Jira connection...")
             
-            # Save the config
-            self.save_config(config)
+            # Test the connection with a real API call
+            import requests
+            auth = (username, api_token)
+            headers = {'Accept': 'application/json'}
+            response = requests.get(f"{base_url}/rest/api/3/myself", auth=auth, headers=headers, timeout=10)
             
-            console.print("✅ Jira configured successfully!")
-            console.print(f"   Base URL: {base_url}")
-            console.print(f"   Username: {username}")
-            
-            return config
+            if response.status_code == 200:
+                # Save the config only if connection is successful
+                self.save_config(config)
+                
+                console.print("✅ Jira configured successfully!")
+                console.print(f"   Base URL: {base_url}")
+                console.print(f"   Username: {username}")
+                
+                return config
+            else:
+                console.print(f"❌ Jira connection failed: HTTP {response.status_code}")
+                console.print(f"   Response: {response.text}")
+                console.print("Please check your credentials and try again")
+                return None
             
         except Exception as e:
             console.print(f"❌ Jira connection failed: {e}")

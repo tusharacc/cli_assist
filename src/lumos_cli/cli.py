@@ -53,11 +53,9 @@ def check_integration_status() -> dict:
     
     # Check Ollama status
     try:
-        from .client import LLMRouter
-        router = LLMRouter("auto", "ollama")
-        # Try a simple test to see if Ollama is responding
-        test_response = router.chat("test", "ollama", "llama3.2:latest")
-        if test_response and "error" not in test_response.lower():
+        from .config import config
+        backends = config.get_available_backends()
+        if "ollama" in backends:
             status['ollama'] = {'status': 'connected', 'message': 'Ollama 🟢'}
         else:
             status['ollama'] = {'status': 'error', 'message': 'Ollama 🔴'}

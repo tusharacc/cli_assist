@@ -204,6 +204,28 @@ class ShellExecutor:
                 return True, stdout, stderr
             else:
                 console.print(f"[red]❌ Command failed with exit code {process.returncode}[/red]")
+                
+                # Perform intelligent failure analysis
+                if stderr or stdout:
+                    console.print("\n🔍 Analyzing failure...")
+                    try:
+                        from .failure_analyzer import analyze_command_failure
+                        analysis = analyze_command_failure(command, stdout, stderr, process.returncode)
+                        
+                        # Display quick analysis
+                        console.print(f"💡 [bold]Likely cause:[/bold] {analysis.likely_cause}")
+                        if analysis.code_location:
+                            console.print(f"📍 [bold]Location:[/bold] {analysis.code_location}")
+                        
+                        if analysis.suggested_fixes:
+                            console.print(f"🔧 [bold]Quick fix:[/bold] {analysis.suggested_fixes[0]}")
+                        
+                        console.print(f"[dim]💬 Ask 'analyze this failure' for detailed analysis[/dim]")
+                        
+                    except Exception as e:
+                        # Fallback if analysis fails
+                        console.print(f"[dim]Analysis failed: {e}[/dim]")
+                
                 return False, stdout, stderr
                 
         except FileNotFoundError:

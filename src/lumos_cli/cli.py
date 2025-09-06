@@ -1720,12 +1720,24 @@ def _interactive_shell(command: str):
         # Execute with safety checks and confirmation
         success, stdout, stderr = execute_shell_command(command, context)
         
-        # Show brief result (detailed output already shown by executor)
-        if not success and stderr == "Cancelled by user":
+        # Store failure information for potential analysis
+        if not success and stderr != "Cancelled by user":
+            # Store the last failure for analysis
+            global _last_failure_info
+            _last_failure_info = {
+                'command': command,
+                'stdout': stdout,
+                'stderr': stderr,
+                'timestamp': str(__import__('datetime').datetime.now())
+            }
+        elif not success and stderr == "Cancelled by user":
             console.print("[dim]Shell command cancelled[/dim]")
             
     except Exception as e:
         console.print(f"[red]Shell execution error: {e}[/red]")
+
+# Global variable to store last failure information
+_last_failure_info = None
 
 def _interactive_fix(instruction: str):
     """Handle fix command in interactive mode"""
@@ -1737,6 +1749,49 @@ def _interactive_fix(instruction: str):
 def _interactive_chat(user_input: str, router, db, history, persona, context):
     """Handle general chat in interactive mode with intelligent file discovery"""
     try:
+        # Check if user is asking for failure analysis
+        global _last_failure_info
+        failure_analysis_patterns = [
+            'analyze the failure', 'analyze this failure', 'what went wrong',
+            'why did it fail', 'explain the error', 'debug the error',
+            'what caused the failure', 'help with the error'
+        ]
+        
+        user_lower = user_input.lower()
+        if any(pattern in user_lower for pattern in failure_analysis_patterns) and _last_failure_info:
+            console.print("[dim]🔍 Analyzing recent failure...[/dim]")
+            
+            try:
+                from .failure_analyzer import analyze_command_failure, failure_analyzer
+                
+                # Get detailed analysis
+                analysis = analyze_command_failure(
+                    _last_failure_info['command'],
+                    _last_failure_info['stdout'], 
+                    _last_failure_info['stderr'],
+                    1  # Assume exit code 1 for failures
+                )
+                
+                # Display comprehensive analysis
+                failure_analyzer.display_analysis(analysis)
+                
+                # Add to history
+                analysis_summary = f"Analyzed failure of command '{_last_failure_info['command']}': {analysis.likely_cause}"
+                history.add_message("user", user_input, command="failure_analysis")
+                history.add_message("assistant", analysis_summary, command="failure_analysis")
+                
+                console.print(f"\n[dim]💡 This analysis was based on the recent command failure[/dim]")
+                return
+                
+            except Exception as e:
+                console.print(f"[red]Failed to analyze: {e}[/red]")
+                # Fall through to normal processing
+        
+        elif any(pattern in user_lower for pattern in failure_analysis_patterns) and not _last_failure_info:
+            console.print("[yellow]No recent command failures to analyze.[/yellow]")
+            console.print("[dim]Run a command that fails, then ask me to analyze the failure.[/dim]")
+            return
+        
         # Always try smart file discovery first - let the LLM decide if it needs the files
         console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")
         

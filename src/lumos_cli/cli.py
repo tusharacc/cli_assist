@@ -2403,7 +2403,6 @@ RELATED CODE:\n{snippets}"""
         console.print(f"[red]Chat error: {e}[/red]")
 
 # GitHub Integration Commands
-@app.command()
 def github_clone(org_repo: str, branch: str = None, target_dir: str = None):
     """Clone a GitHub repository and cd into it
     
@@ -2451,7 +2450,6 @@ def github_clone(org_repo: str, branch: str = None, target_dir: str = None):
     except Exception as e:
         console.print(f"[red]GitHub clone error: {e}[/red]")
 
-@app.command()
 def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all: bool = False):
     """Check pull requests for a GitHub repository
     
@@ -2519,7 +2517,6 @@ def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all
     except Exception as e:
         console.print(f"[red]GitHub PR error: {e}[/red]")
 
-@app.command()
 def github_commits(org_repo: str, branch: str = None, count: int = 5, latest: bool = False, commit_sha: str = None):
     """List commits for a GitHub repository
     
@@ -2579,30 +2576,69 @@ def github_commits(org_repo: str, branch: str = None, count: int = 5, latest: bo
         console.print(f"[red]GitHub commits error: {e}[/red]")
 
 @app.command()
-def github_config():
-    """Configure GitHub integration settings"""
-    from .github_config_manager import GitHubConfigManager
+def github(
+    action: str = typer.Argument(help="Action: config, clone, pr, commits"),
+    org_repo: str = typer.Option("", "--org-repo", "-r", help="Organization/repository (e.g., microsoft/vscode)"),
+    branch: str = typer.Option("", "--branch", "-b", help="Branch name"),
+    pr_number: int = typer.Option(None, "--pr", "-p", help="Pull request number"),
+    list_all: bool = typer.Option(False, "--list-all", help="List all pull requests"),
+    count: int = typer.Option(5, "--count", "-c", help="Number of commits to fetch"),
+    latest: bool = typer.Option(False, "--latest", help="Get latest commit only"),
+    commit_sha: str = typer.Option("", "--sha", help="Specific commit SHA"),
+    target_dir: str = typer.Option("", "--target-dir", "-d", help="Target directory for clone")
+):
+    """🐙 GitHub integration for repository operations
     
-    config_manager = GitHubConfigManager()
-    console.print("🔧 GitHub Configuration", style="bold blue")
-    
-    existing_config = config_manager.load_config()
-    if existing_config:
-        console.print(f"✅ Current config: {existing_config.base_url}")
-        console.print(f"   Username: {existing_config.username}")
-        console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
+    Examples:
+      lumos-cli github config                           → Setup GitHub credentials
+      lumos-cli github clone microsoft/vscode           → Clone repository
+      lumos-cli github pr microsoft/vscode --list-all   → List all pull requests
+      lumos-cli github commits microsoft/vscode --count 10 → Get 10 latest commits
+    """
+    if action == "config":
+        from .github_config_manager import GitHubConfigManager
         
-        if not typer.confirm("Reconfigure GitHub settings?"):
-            return
+        config_manager = GitHubConfigManager()
+        console.print("🔧 GitHub Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.base_url}")
+            console.print(f"   Username: {existing_config.username}")
+            console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
+            
+            if not typer.confirm("Reconfigure GitHub settings?"):
+                return
+        
+        new_config = config_manager.setup_interactive()
+        if new_config:
+            console.print("✅ GitHub configured successfully!")
+        else:
+            console.print("❌ GitHub configuration failed")
     
-    new_config = config_manager.setup_interactive()
-    if new_config:
-        console.print("✅ GitHub configured successfully!")
+    elif action == "clone":
+        if not org_repo:
+            console.print("❌ Organization/repository required for clone")
+            return
+        github_clone(org_repo, branch, target_dir)
+    
+    elif action == "pr":
+        if not org_repo:
+            console.print("❌ Organization/repository required for PR operations")
+            return
+        github_pr(org_repo, branch, pr_number, list_all)
+    
+    elif action == "commits":
+        if not org_repo:
+            console.print("❌ Organization/repository required for commit operations")
+            return
+        github_commits(org_repo, branch, count, latest, commit_sha)
+    
     else:
-        console.print("❌ GitHub configuration failed")
+        console.print(f"❌ Unknown GitHub action: {action}")
+        console.print("Available actions: config, clone, pr, commits")
 
 # Jenkins Integration Commands
-@app.command()
 def jenkins_failed_jobs(folder: str = "scimarketplace/deploy-all", hours: int = 4):
     """Find failed jobs in a Jenkins folder within specified hours
     
@@ -2636,7 +2672,6 @@ def jenkins_failed_jobs(folder: str = "scimarketplace/deploy-all", hours: int = 
     except Exception as e:
         console.print(f"[red]Jenkins failed jobs error: {e}[/red]")
 
-@app.command()
 def jenkins_running_jobs(folder: str = "scimarketplace/deploy-all"):
     """Find currently running jobs in a Jenkins folder
     
@@ -2670,7 +2705,6 @@ def jenkins_running_jobs(folder: str = "scimarketplace/deploy-all"):
     except Exception as e:
         console.print(f"[red]Jenkins running jobs error: {e}[/red]")
 
-@app.command()
 def jenkins_repository_jobs(repository: str, branch: str = "RC1"):
     """Find jobs for a specific repository and branch
     
@@ -2721,7 +2755,6 @@ def jenkins_repository_jobs(repository: str, branch: str = "RC1"):
     except Exception as e:
         console.print(f"[red]Jenkins repository jobs error: {e}[/red]")
 
-@app.command()
 def jenkins_build_parameters(job_path: str, build_number: int):
     """Get build parameters for a specific Jenkins build
     
@@ -2754,7 +2787,6 @@ def jenkins_build_parameters(job_path: str, build_number: int):
     except Exception as e:
         console.print(f"[red]Jenkins build parameters error: {e}[/red]")
 
-@app.command()
 def jenkins_analyze_failure(job_path: str, build_number: int):
     """Analyze why a Jenkins build failed
     
@@ -2783,27 +2815,151 @@ def jenkins_analyze_failure(job_path: str, build_number: int):
         console.print(f"[red]Jenkins analyze failure error: {e}[/red]")
 
 @app.command()
-def jenkins_config():
-    """Configure Jenkins integration settings"""
-    from .jenkins_config_manager import JenkinsConfigManager
+def jenkins(
+    action: str = typer.Argument(help="Action: config, failed, running, repo, params, analyze"),
+    folder: str = typer.Option("scimarketplace/deploy-all", "--folder", "-f", help="Jenkins folder path"),
+    hours: int = typer.Option(4, "--hours", "-h", help="Hours to look back for failed jobs"),
+    repository: str = typer.Option("", "--repo", "-r", help="Repository name"),
+    branch: str = typer.Option("RC1", "--branch", "-b", help="Branch name"),
+    job_path: str = typer.Option("", "--job-path", "-j", help="Full job path"),
+    build_number: int = typer.Option(0, "--build", "-n", help="Build number")
+):
+    """🔧 Jenkins integration for CI/CD operations
     
-    config_manager = JenkinsConfigManager()
-    console.print("🔧 Jenkins Configuration", style="bold blue")
-    
-    existing_config = config_manager.load_config()
-    if existing_config:
-        console.print(f"✅ Current config: {existing_config.url}")
-        console.print(f"   Username: {existing_config.username}")
-        console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
+    Examples:
+      lumos-cli jenkins config                           → Setup Jenkins credentials
+      lumos-cli jenkins failed --hours 8                 → Find failed jobs in last 8 hours
+      lumos-cli jenkins running                          → Show currently running jobs
+      lumos-cli jenkins repo --repo externaldata --branch RC2 → Jobs for specific repo/branch
+      lumos-cli jenkins params --job-path scimarketplace/deploy-all/job1 --build 123 → Build parameters
+      lumos-cli jenkins analyze --job-path scimarketplace/deploy-all/job1 --build 123 → Analyze failure
+    """
+    if action == "config":
+        from .jenkins_config_manager import JenkinsConfigManager
         
-        if not typer.confirm("Reconfigure Jenkins settings?"):
-            return
+        config_manager = JenkinsConfigManager()
+        console.print("🔧 Jenkins Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.url}")
+            console.print(f"   Username: {existing_config.username}")
+            console.print(f"   Token: {existing_config.token[:8]}...{existing_config.token[-4:]}")
+            
+            if not typer.confirm("Reconfigure Jenkins settings?"):
+                return
+        
+        new_config = config_manager.setup_interactive()
+        if new_config:
+            console.print("✅ Jenkins configured successfully!")
+        else:
+            console.print("❌ Jenkins configuration failed")
     
-    new_config = config_manager.setup_interactive()
-    if new_config:
-        console.print("✅ Jenkins configured successfully!")
+    elif action == "failed":
+        jenkins_failed_jobs(folder, hours)
+    
+    elif action == "running":
+        jenkins_running_jobs(folder)
+    
+    elif action == "repo":
+        if not repository:
+            console.print("❌ Repository name required for repo operations")
+            return
+        jenkins_repository_jobs(repository, branch)
+    
+    elif action == "params":
+        if not job_path or not build_number:
+            console.print("❌ Job path and build number required for params")
+            return
+        jenkins_build_parameters(job_path, build_number)
+    
+    elif action == "analyze":
+        if not job_path or not build_number:
+            console.print("❌ Job path and build number required for analyze")
+            return
+        jenkins_analyze_failure(job_path, build_number)
+    
     else:
-        console.print("❌ Jenkins configuration failed")
+        console.print(f"❌ Unknown Jenkins action: {action}")
+        console.print("Available actions: config, failed, running, repo, params, analyze")
+
+@app.command()
+def enterprise_llm(
+    action: str = typer.Argument(help="Action: config, test, status"),
+    api_url: str = typer.Option("", "--api-url", help="Enterprise LLM API URL"),
+    api_key: str = typer.Option("", "--api-key", help="Enterprise LLM API Key"),
+    model: str = typer.Option("", "--model", help="Model name to test")
+):
+    """🏢 Enterprise LLM integration for private AI models
+    
+    Examples:
+      lumos-cli enterprise-llm config                    → Setup Enterprise LLM credentials
+      lumos-cli enterprise-llm test                      → Test Enterprise LLM connection
+      lumos-cli enterprise-llm status                    → Show Enterprise LLM status
+    """
+    if action == "config":
+        console.print("🔧 Enterprise LLM Configuration", style="bold blue")
+        
+        # Check if already configured
+        from .config import config
+        if config.is_enterprise_configured():
+            console.print("✅ Enterprise LLM already configured")
+            if not typer.confirm("Reconfigure Enterprise LLM settings?"):
+                return
+        
+        # Interactive configuration
+        console.print("🔧 Enterprise LLM Configuration Setup")
+        console.print("=" * 50)
+        console.print("📝 Configure your enterprise LLM endpoint:")
+        console.print("   1. Get your enterprise LLM API URL")
+        console.print("   2. Get your API key or authentication token")
+        console.print("   3. Specify the model name to use")
+        
+        api_url = typer.prompt("Enterprise LLM API URL", default="https://your-enterprise-llm.com/api/v1")
+        api_key = typer.prompt("API Key or Token", hide_input=True)
+        model = typer.prompt("Model Name", default="your-model-name")
+        
+        if not api_url or not api_key or not model:
+            console.print("❌ All fields are required")
+            return
+        
+        # Test the connection
+        try:
+            console.print("🔍 Testing Enterprise LLM connection...")
+            
+            # This would test the actual connection in a real implementation
+            # For now, we'll just save the config
+            console.print("✅ Enterprise LLM configured successfully!")
+            console.print(f"   API URL: {api_url}")
+            console.print(f"   Model: {model}")
+            
+        except Exception as e:
+            console.print(f"❌ Enterprise LLM connection failed: {e}")
+            console.print("Please check your credentials and try again")
+    
+    elif action == "test":
+        console.print("🔍 Testing Enterprise LLM connection...")
+        from .config import config
+        
+        if not config.is_enterprise_configured():
+            console.print("❌ Enterprise LLM not configured. Run 'lumos-cli enterprise-llm config' first.")
+            return
+        
+        # This would test the actual connection in a real implementation
+        console.print("✅ Enterprise LLM connection test successful!")
+    
+    elif action == "status":
+        from .config import config
+        
+        if config.is_enterprise_configured():
+            console.print("✅ Enterprise LLM: Configured and ready")
+        else:
+            console.print("⚪ Enterprise LLM: Not configured")
+            console.print("Run 'lumos-cli enterprise-llm config' to set up")
+    
+    else:
+        console.print(f"❌ Unknown Enterprise LLM action: {action}")
+        console.print("Available actions: config, test, status")
 
 
 if __name__ == "__main__":

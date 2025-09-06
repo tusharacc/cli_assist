@@ -31,13 +31,13 @@ class DebugLogger:
             datefmt='%Y-%m-%d %H:%M:%S'
         )
         
-        # Console handler
+        # Console handler (only for errors and warnings)
         console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(logging.WARNING)
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
         
-        # File handler
+        # File handler - use the same directory as existing logger
         log_file = self._get_log_file_path()
         file_handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
         file_handler.setLevel(logging.DEBUG)
@@ -49,20 +49,20 @@ class DebugLogger:
     
     def _get_log_file_path(self) -> str:
         """Get the log file path for the current platform"""
-        if os.name == 'nt':  # Windows
-            # Windows: %APPDATA%\Lumos\Logs\
-            appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
-            log_dir = Path(appdata) / 'Lumos' / 'Logs'
-        else:  # Unix-like (macOS, Linux)
-            # Unix: ~/.lumos/logs/
-            log_dir = Path.home() / '.lumos' / 'logs'
+        # Use the same logging directory as the existing logger system
+        from .platform_utils import get_logs_directory, create_directory_if_not_exists
+        
+        log_dir = get_logs_directory()
         
         # Create directory if it doesn't exist
-        log_dir.mkdir(parents=True, exist_ok=True)
+        if not create_directory_if_not_exists(log_dir):
+            # Fallback to home directory if logs directory can't be created
+            log_dir = Path.home() / '.lumos' / 'logs'
+            log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Create log file with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        log_file = log_dir / f'lumos-debug-{timestamp}.log'
+        # Create log file with daily format (same as existing logger)
+        today = datetime.now().strftime('%Y-%m-%d')
+        log_file = log_dir / f'lumos-debug-{today}.log'
         
         return str(log_file)
     

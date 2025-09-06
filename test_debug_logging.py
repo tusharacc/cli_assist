@@ -60,18 +60,22 @@ def show_log_locations():
     print("\n📁 Log File Locations")
     print("=" * 50)
     
-    if os.name == 'nt':  # Windows
-        appdata = os.environ.get('APPDATA', os.path.expanduser('~'))
-        log_dir = os.path.join(appdata, 'Lumos', 'Logs')
-        print(f"🪟 Windows: {log_dir}")
-        print(f"   Example: C:\\Users\\YourUsername\\AppData\\Roaming\\Lumos\\Logs\\")
-    else:  # Unix-like (macOS, Linux)
-        log_dir = os.path.join(os.path.expanduser('~'), '.lumos', 'logs')
-        print(f"🐧 Unix/Linux/macOS: {log_dir}")
-        print(f"   Example: /home/username/.lumos/logs/")
+    # Use the same logic as the debug logger
+    from src.lumos_cli.platform_utils import get_logs_directory
     
-    print(f"\n📝 Log files are created with timestamps:")
-    print(f"   lumos-debug-YYYYMMDD_HHMMSS.log")
+    log_dir = get_logs_directory()
+    print(f"📂 Actual log directory: {log_dir}")
+    
+    if os.name == 'nt':  # Windows
+        print(f"🪟 Windows: %LOCALAPPDATA%\\Lumos\\Logs\\")
+        print(f"   Example: C:\\Users\\YourUsername\\AppData\\Local\\Lumos\\Logs\\")
+    else:  # Unix-like (macOS, Linux)
+        print(f"🐧 Unix/Linux/macOS: ~/Library/Logs/Lumos/ (macOS) or ~/.lumos/logs/ (Linux)")
+        print(f"   Example: /Users/username/Library/Logs/Lumos/ (macOS)")
+    
+    print(f"\n📝 Log files are created daily:")
+    print(f"   lumos-YYYY-MM-DD.log (main logs)")
+    print(f"   lumos-debug-YYYY-MM-DD.log (debug logs with function traces)")
     
     print(f"\n📖 For complete debugging guide, see: COMPREHENSIVE_DEBUGGING_GUIDE.md")
 

@@ -2895,15 +2895,20 @@ def enterprise_llm(
         console.print("🔧 Enterprise LLM Configuration Setup")
         console.print("=" * 50)
         console.print("📝 Configure your enterprise LLM endpoint:")
-        console.print("   1. Get your enterprise LLM API URL")
-        console.print("   2. Get your API key or authentication token")
-        console.print("   3. Specify the model name to use")
+        console.print("   1. Get your enterprise LLM Token URL")
+        console.print("   2. Get your enterprise LLM Chat URL")
+        console.print("   3. Get your Application ID")
+        console.print("   4. Get your Application Key")
+        console.print("   5. Specify the model/resource name")
         
-        api_url = typer.prompt("Enterprise LLM API URL", default="https://your-enterprise-llm.com/api/v1")
-        api_key = typer.prompt("API Key or Token", hide_input=True)
-        model = typer.prompt("Model Name", default="your-model-name")
+        token_url = typer.prompt("Token URL", default="https://your-enterprise-llm.com/api/v1/token")
+        chat_url = typer.prompt("Chat URL", default="https://your-enterprise-llm.com/api/v1/chat")
+        app_id = typer.prompt("Application ID")
+        console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
+        app_key = typer.prompt("Application Key", hide_input=True)
+        app_resource = typer.prompt("Model/Resource Name", default="your-model-name")
         
-        if not api_url or not api_key or not model:
+        if not token_url or not chat_url or not app_id or not app_key or not app_resource:
             console.print("❌ All fields are required")
             return
         
@@ -2912,17 +2917,19 @@ def enterprise_llm(
             console.print("🔍 Testing Enterprise LLM connection...")
             
             # Save the configuration
-            config.set('llm.enterprise_token_url', api_url)
-            config.set('llm.enterprise_chat_url', api_url)
-            config.set('llm.enterprise_app_id', 'enterprise')
-            config.set('llm.enterprise_app_key', api_key)
-            config.set('llm.enterprise_app_resource', model)
+            config.set('llm.enterprise_token_url', token_url)
+            config.set('llm.enterprise_chat_url', chat_url)
+            config.set('llm.enterprise_app_id', app_id)
+            config.set('llm.enterprise_app_key', app_key)
+            config.set('llm.enterprise_app_resource', app_resource)
             
             # This would test the actual connection in a real implementation
             # For now, we'll just save the config
             console.print("✅ Enterprise LLM configured successfully!")
-            console.print(f"   API URL: {api_url}")
-            console.print(f"   Model: {model}")
+            console.print(f"   Token URL: {token_url}")
+            console.print(f"   Chat URL: {chat_url}")
+            console.print(f"   App ID: {app_id}")
+            console.print(f"   Model/Resource: {app_resource}")
             
         except Exception as e:
             console.print(f"❌ Enterprise LLM connection failed: {e}")

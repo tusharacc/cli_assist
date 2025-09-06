@@ -104,6 +104,10 @@ class LLMRouter:
         
         chosen_backend = self._choose_backend(task_type)
         
+        from rich.console import Console
+        console = Console()
+        console.print(f"🧠 [bold cyan]Task:[/bold cyan] {task_type.value} | [bold magenta]Backend:[/bold magenta] {chosen_backend}")
+        
         # Try chosen backend first, fallback if it fails
         available_backends = config.get_available_backends()
         

@@ -448,6 +448,7 @@ def setup_wizard():
         
         if Confirm.ask("\nConfigure OpenAI API now?", default=True):
             api_url = Prompt.ask("API URL", default="https://api.openai.com/v1/chat/completions")
+            console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
             api_key = Prompt.ask("API Key", password=True)
             
             config.set('llm.rest_api_url', api_url)

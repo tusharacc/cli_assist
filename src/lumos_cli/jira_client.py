@@ -421,6 +421,7 @@ class JiraConfigManager:
         
         base_url = Prompt.ask("JIRA Base URL (e.g., https://company.atlassian.net)")
         username = Prompt.ask("Username/Email")
+        console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
         token = Prompt.ask("Personal Access Token", password=True)
         default_project = Prompt.ask("Default Project Key (optional)", default="")
         

@@ -38,9 +38,61 @@ class JiraConfigManager:
         except Exception as e:
             debug_logger.error(f"Failed to save Jira config: {e}")
     
+    def load_config(self) -> Dict:
+        """Load Jira configuration from file (public method)"""
+        return self._load_config()
+    
     def get_config(self) -> Dict:
         """Get current Jira configuration"""
         return self.config
+    
+    def setup_interactive(self) -> Optional[Dict]:
+        """Interactive Jira configuration setup"""
+        from rich.console import Console
+        from rich.prompt import Prompt
+        
+        console = Console()
+        console.print("🔧 Jira Configuration Setup", style="bold blue")
+        console.print("=" * 40)
+        
+        console.print("📝 [dim]To get your Jira API token:[/dim]")
+        console.print("   1. Go to Jira → Profile → Personal Access Tokens")
+        console.print("   2. Click 'Create API token'")
+        console.print("   3. Give it a label and copy the generated token")
+        console.print("   4. Or use your password for basic auth")
+        console.print()
+        
+        base_url = Prompt.ask("Jira Base URL", default="https://your-company.atlassian.net")
+        username = Prompt.ask("Jira Username/Email")
+        console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
+        api_token = Prompt.ask("API Token or Password", password=True)
+        
+        config = {
+            'base_url': base_url.rstrip('/'),
+            'username': username,
+            'api_token': api_token
+        }
+        
+        # Test connection
+        try:
+            client = JiraClient(base_url, username, api_token)
+            
+            # Try to get a test ticket (this will fail gracefully if no tickets exist)
+            console.print("🔍 Testing Jira connection...")
+            
+            # Save the config
+            self.save_config(config)
+            
+            console.print("✅ Jira configured successfully!")
+            console.print(f"   Base URL: {base_url}")
+            console.print(f"   Username: {username}")
+            
+            return config
+            
+        except Exception as e:
+            console.print(f"❌ Jira connection failed: {e}")
+            console.print("Please check your credentials and try again")
+            return None
 
 class JiraTicketBrowser:
     """Browser for Jira tickets"""

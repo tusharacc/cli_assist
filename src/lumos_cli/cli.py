@@ -2229,28 +2229,35 @@ def _interactive_jira(query: str):
         
         if jira_ticket_key:
             # Get ticket details
+            console.print(f"🔍 Calling Jira API for ticket {jira_ticket_key}...")
             success, ticket, message = client.get_ticket_details(jira_ticket_key)
             
-            if success:
+            if success and ticket:
                 console.print(f"✅ Found ticket {jira_ticket_key}")
                 
                 # Display ticket details
                 browser = JiraTicketBrowser(client)
                 browser.display_ticket_details(ticket)
             else:
-                console.print(f"❌ Could not retrieve ticket {jira_ticket_key}: {message}")
+                if not success:
+                    console.print(f"❌ Jira API call failed: {message}")
+                else:
+                    console.print(f"❌ Ticket {jira_ticket_key} not found or access denied")
         else:
             # If no ticket key is found, perform a search
             console.print(f'🔍 Searching JIRA for: "{query}"')
             jql = client.construct_jql(query)
+            console.print(f"🔍 Calling Jira API with JQL: {jql}")
             success, tickets, message = client.search_tickets(jql)
 
-            if success:
-                console.print(f"✅ {message}")
+            if success and tickets:
+                console.print(f"✅ Found {len(tickets)} tickets")
                 browser = JiraTicketBrowser(client)
                 browser.display_tickets_table(tickets)
+            elif success and not tickets:
+                console.print("ℹ️ No tickets found matching your search criteria")
             else:
-                console.print(f"❌ {message}")
+                console.print(f"❌ Jira search failed: {message}")
 
     except Exception as e:
         console.print(f"[red]JIRA command error: {e}[/red]")

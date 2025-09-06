@@ -198,8 +198,8 @@ class JiraClient:
         debug_logger.log_function_call("JiraClient.get_ticket", kwargs={"ticket_id": ticket_id})
         
         if not self.username or not self.api_token:
-            debug_logger.warning("Jira credentials not configured, returning mock data")
-            return self._get_mock_ticket(ticket_id)
+            debug_logger.warning("Jira credentials not configured")
+            return None
         
         try:
             # Make real API call to Jira
@@ -211,7 +211,7 @@ class JiraClient:
             }
             
             debug_logger.info(f"Making Jira API call to: {url}")
-            response = requests.get(url, auth=auth, headers=headers)
+            response = requests.get(url, auth=auth, headers=headers, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
@@ -221,13 +221,16 @@ class JiraClient:
             elif response.status_code == 404:
                 debug_logger.warning(f"Ticket {ticket_id} not found")
                 return None
+            elif response.status_code == 401:
+                debug_logger.error(f"Jira authentication failed: Invalid credentials")
+                return None
             else:
-                debug_logger.error(f"Jira API error: {response.status_code} - {response.text}")
-                return self._get_mock_ticket(ticket_id)
+                debug_logger.error(f"Jira API error: {response.status_code}")
+                return None
                 
         except Exception as e:
             debug_logger.error(f"Error calling Jira API: {e}")
-            return self._get_mock_ticket(ticket_id)
+            return None
     
     def _get_mock_ticket(self, ticket_id: str) -> Dict:
         """Get mock ticket data as fallback"""
@@ -356,8 +359,8 @@ class JiraClient:
                                      kwargs={"jql": jql, "max_results": max_results})
         
         if not self.username or not self.api_token:
-            debug_logger.warning("Jira credentials not configured, returning mock data")
-            return self._get_mock_search_results()
+            debug_logger.warning("Jira credentials not configured")
+            return []
         
         try:
             # Make real API call to Jira
@@ -375,7 +378,7 @@ class JiraClient:
             }
             
             debug_logger.info(f"Making Jira search API call with JQL: {jql}")
-            response = requests.post(url, auth=auth, headers=headers, json=payload)
+            response = requests.post(url, auth=auth, headers=headers, json=payload, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
@@ -388,13 +391,16 @@ class JiraClient:
                 
                 debug_logger.log_function_return("JiraClient._search_tickets_impl", f"Found {len(tickets)} real tickets")
                 return tickets
+            elif response.status_code == 401:
+                debug_logger.error(f"Jira authentication failed: Invalid credentials")
+                return []
             else:
-                debug_logger.error(f"Jira search API error: {response.status_code} - {response.text}")
-                return self._get_mock_search_results()
+                debug_logger.error(f"Jira search API error: {response.status_code}")
+                return []
                 
         except Exception as e:
             debug_logger.error(f"Error calling Jira search API: {e}")
-            return self._get_mock_search_results()
+            return []
     
     def _get_mock_search_results(self) -> List[Dict]:
         """Get mock search results as fallback"""

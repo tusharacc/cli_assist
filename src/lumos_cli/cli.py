@@ -2805,66 +2805,6 @@ def jenkins_config():
     else:
         console.print("❌ Jenkins configuration failed")
 
-@app.command()
-def jira_config():
-    """Configure Jira integration settings"""
-    from .jira_client import JiraConfigManager
-    
-    config_manager = JiraConfigManager()
-    console.print("🔧 Jira Configuration", style="bold blue")
-    
-    existing_config = config_manager.get_config()
-    if existing_config:
-        console.print(f"✅ Current config: {existing_config.get('base_url', 'Not set')}")
-        console.print(f"   Username: {existing_config.get('username', 'Not set')}")
-        token = existing_config.get('api_token', '')
-        if token:
-            console.print(f"   Token: {token[:8]}...{token[-4:]}")
-        else:
-            console.print("   Token: Not set")
-        
-        if not typer.confirm("Reconfigure Jira settings?"):
-            return
-    
-    console.print("🔧 Jira Configuration Setup")
-    console.print("=" * 40)
-    console.print("📝 To get your Jira API token:")
-    console.print("   1. Go to Jira → Profile → Personal Access Tokens")
-    console.print("   2. Click 'Create API token'")
-    console.print("   3. Give it a label and copy the generated token")
-    console.print("   4. Or use your password for basic auth")
-    
-    base_url = typer.prompt("Jira Base URL", default="https://your-company.atlassian.net")
-    username = typer.prompt("Jira Username/Email")
-    api_token = typer.prompt("API Token or Password", hide_input=True)
-    
-    if not base_url or not username or not api_token:
-        console.print("❌ All fields are required")
-        return
-    
-    # Test the connection
-    try:
-        from .jira_client import JiraClient
-        test_client = JiraClient(base_url, username, api_token)
-        
-        # Try to get a test ticket (this will fail gracefully if no tickets exist)
-        console.print("🔍 Testing Jira connection...")
-        
-        # Save the config
-        config = {
-            'base_url': base_url,
-            'username': username,
-            'api_token': api_token
-        }
-        config_manager.save_config(config)
-        
-        console.print("✅ Jira configured successfully!")
-        console.print(f"   Base URL: {base_url}")
-        console.print(f"   Username: {username}")
-        
-    except Exception as e:
-        console.print(f"❌ Jira connection failed: {e}")
-        console.print("Please check your credentials and try again")
 
 if __name__ == "__main__":
     app()

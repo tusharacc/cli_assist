@@ -14,6 +14,7 @@ from .file_discovery import SmartFileDiscovery
 from .error_handler import RuntimeErrorHandler, smart_start_app
 from .config import config, setup_wizard
 from .ui import create_header, create_welcome_panel, create_command_help_panel, create_status_panel, create_config_panel, print_brand_footer
+from .shell_executor import execute_shell_command
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 console = Console()
@@ -310,6 +311,7 @@ def chat(backend: str = "auto", model: str = "devstral", session: str = None):
   /search <query> - Search message history
   /clear       - Clear current session
   /stats       - Show repository statistics
+  /shell <cmd> - Execute shell command with confirmation
   exit/quit    - Exit chat mode
 """)
                 continue
@@ -867,10 +869,73 @@ def fix(error_description: str = None):
             else:
                 console.print("[yellow]⚠️ Manual intervention required[/yellow]")
 
-def _auto_detect_start_command(context) -> str:
-    """Auto-detect the appropriate start command based on project context"""
+@app.command()
+def shell(command: str = None):
+    """Execute shell/cmd commands with safety confirmation
     
-    # Check for common startup files
+    Examples:
+      lumos-cli shell "ls -la"
+      lumos-cli shell "npm install"  
+      lumos-cli shell "git status"
+      lumos-cli shell  # Interactive command input
+    """
+    history = get_history_manager()
+    
+    if not command:
+        # Interactive command input
+        from rich.prompt import Prompt
+        console.print("[cyan]🖥️  Shell Command Execution[/cyan]")
+        console.print("[dim]Enter the shell command you want to execute:[/dim]")
+        console.print("[dim]Note: Dangerous commands will require additional confirmation[/dim]")
+        command = Prompt.ask("Command")
+        
+    if not command or not command.strip():
+        console.print("[red]No command provided[/red]")
+        return
+    
+    # Clean up the command
+    command = command.strip()
+    
+    # Add context about where this request came from
+    context = f"User requested shell command execution via Lumos CLI"
+    
+    # Add command to history for context
+    history.add_message("user", f"Execute shell command: {command}", command="shell")
+    
+    # Execute with safety checks and confirmation
+    console.print(f"[bold blue]🖥️  Shell Command Execution[/bold blue]")
+    success, stdout, stderr = execute_shell_command(command, context)
+    
+    # Add result to history
+    if success:
+        history.add_message("assistant", f"Command executed successfully: {command}", command="shell")
+        console.print(f"\n[green]Command completed successfully![/green]")
+    else:
+        history.add_message("assistant", f"Command failed: {command} - {stderr}", command="shell")
+        if stderr and stderr != "Cancelled by user":
+            console.print(f"\n[red]Command failed with error: {stderr}[/red]")
+
+def _auto_detect_start_command(context) -> str:
+    """Auto-detect the appropriate start command based on project context using enhanced detection"""
+    
+    # Use the new enhanced app detector
+    from .app_detector import EnhancedAppDetector
+    
+    try:
+        detector = EnhancedAppDetector(".")
+        app_context = detector.detect_execution_options()
+        
+        # Get the suggested command
+        suggested_command = detector.suggest_execution_command(app_context, interactive=False)
+        
+        if suggested_command and app_context.confidence > 0.3:
+            return suggested_command
+            
+    except Exception:
+        # Fall back to original logic if enhanced detection fails
+        pass
+    
+    # Original fallback logic (simplified)
     startup_files = {
         'app.py': 'python app.py',
         'main.py': 'python main.py', 
@@ -900,26 +965,73 @@ def _auto_detect_start_command(context) -> str:
         except:
             pass
     
-    # Check for Flask
-    if 'python' in context.primary_languages:
-        # Look for Flask app
-        for file in ['app.py', 'main.py', 'server.py']:
-            if os.path.exists(file):
-                try:
-                    with open(file, 'r') as f:
-                        content = f.read()
-                        if 'Flask' in content and 'app.run' in content:
-                            return f'python {file}'
-                        elif 'Flask' in content:
-                            return f'flask run'
-                except:
-                    continue
-    
-    # Check for framework-specific commands
-    if 'django' in context.frameworks:
-        return 'python manage.py runserver'
-    
     return None
+
+@app.command()
+def detect():
+    """Show all detected application execution options for current project"""
+    from .app_detector import EnhancedAppDetector
+    from rich.table import Table
+    
+    console.print("[bold cyan]🔍 Application Execution Detection[/bold cyan]\n")
+    
+    try:
+        detector = EnhancedAppDetector(".")
+        app_context = detector.detect_execution_options()
+        
+        if not app_context.all_options:
+            console.print("[yellow]No execution options detected in current directory[/yellow]")
+            console.print("\n[dim]Try running this command in a project directory with:")
+            console.print("• Python files (.py)")
+            console.print("• Node.js project (package.json)")
+            console.print("• Go project (main.go)")
+            console.print("• Rust project (Cargo.toml)")
+            console.print("• Java files (.java)")
+            console.print("• Docker files (Dockerfile)[/dim]")
+            return
+        
+        # Create summary table
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Rank", style="dim", width=4)
+        table.add_column("Command", style="cyan")
+        table.add_column("Description", style="white")
+        table.add_column("Confidence", style="green")
+        table.add_column("Framework", style="yellow")
+        
+        for i, option in enumerate(app_context.all_options[:10], 1):  # Show top 10
+            confidence_str = f"{option.confidence:.1%}"
+            framework_str = option.framework or "-"
+            primary_indicator = "👑" if option.is_primary else str(i)
+            
+            table.add_row(
+                primary_indicator,
+                option.command,
+                option.description,
+                confidence_str,
+                framework_str
+            )
+        
+        console.print(table)
+        
+        # Show primary recommendation
+        if app_context.primary_option:
+            console.print(f"\n[bold green]🚀 Recommended: [/bold green]`{app_context.primary_option.command}`")
+            console.print(f"[dim]   {app_context.primary_option.description}[/dim]")
+        
+        # Show project summary
+        console.print(f"\n[bold]Project Analysis:[/bold]")
+        console.print(f"  🏷️  Type: {app_context.project_type}")
+        console.print(f"  🎯 Confidence: {app_context.confidence:.1%}")
+        console.print(f"  📊 Options found: {len(app_context.all_options)}")
+        
+        # Usage hint
+        console.print(f"\n[dim]💡 Use `lumos-cli start` to run the recommended command[/dim]")
+        console.print(f"[dim]💡 Use `lumos-cli shell --command \"<command>\"` to run any specific command[/dim]")
+        
+    except Exception as e:
+        console.print(f"[red]Error detecting applications: {e}[/red]")
+        import traceback
+        console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 @app.command()
 def setup():
@@ -1349,6 +1461,13 @@ def interactive_mode():
                 elif user_input.startswith('/sessions'):
                     _show_sessions(history)
                     continue
+                elif user_input.startswith('/shell'):
+                    command = user_input[6:].strip()
+                    if command:
+                        _interactive_shell(command)
+                    else:
+                        console.print("[yellow]Usage: /shell <command>[/yellow]")
+                    continue
                 else:
                     console.print(f"[red]Unknown command: {user_input}[/red]")
                     continue
@@ -1366,6 +1485,8 @@ def interactive_mode():
                 _interactive_start(detected_command['instruction'])
             elif detected_command['type'] == 'fix':
                 _interactive_fix(detected_command['instruction'])
+            elif detected_command['type'] == 'shell':
+                _interactive_shell(detected_command['command'])
             else:
                 # Default to chat mode
                 _interactive_chat(user_input, router, db, history, persona, context)
@@ -1406,6 +1527,17 @@ def _detect_command_intent(user_input: str) -> dict:
         r'^(start|run|launch)\s+(.*)',
         r'^start\s*(the\s*)?(app|server|application)',
         r'^(npm|python|node|flask)\s+.*'
+    ]
+    
+    # Shell/Command patterns - detect shell commands
+    shell_patterns = [
+        r'^(run|execute|shell)\s+(.+)',
+        r'^(ls|dir|cd|pwd|mkdir|rmdir|cp|mv|rm|del)(\s+.*)?$',
+        r'^(git|npm|pip|python|node|java|gcc|make|cmake|docker|kubectl)\s+.*',
+        r'^(curl|wget|ssh|scp|rsync)\s+.*',
+        r'^(ps|top|htop|kill|killall|chmod|chown|sudo)\s*.*',
+        r'^(cat|grep|find|sort|wc|head|tail|less|more)\s+.*',
+        r'^(echo|printf|which|whereis|whoami|date|uptime)\s*.*'
     ]
     
     # Error/Fix patterns - enhanced to catch more debugging requests
@@ -1465,6 +1597,22 @@ def _detect_command_intent(user_input: str) -> dict:
                 'type': 'start',
                 'instruction': user_input,
                 'confidence': 0.8
+            }
+    
+    # Check for shell/command intent
+    for pattern in shell_patterns:
+        match = re.search(pattern, lower_input)
+        if match:
+            # Extract the actual command (remove "run", "execute", "shell" prefixes)
+            if pattern.startswith(r'^(run|execute|shell)'):
+                command = match.group(2) if len(match.groups()) >= 2 else user_input
+            else:
+                command = user_input
+            return {
+                'type': 'shell',
+                'command': command,
+                'instruction': user_input,
+                'confidence': 0.9
             }
     
     # Check for fix/error intent
@@ -1549,43 +1697,24 @@ def _interactive_start(instruction: str):
     except Exception as e:
         console.print(f"[red]Start error: {e}[/red]")
 
-def _is_debugging_request(user_input: str) -> bool:
-    """Detect if user input is describing a bug or asking for debugging help"""
-    lower_input = user_input.lower()
-    
-    # Bug/error keywords
-    bug_keywords = [
-        'bug', 'error', 'issue', 'problem', 'broken', 'not working', 'failing',
-        'exception', 'crash', 'traceback', 'fix', 'debug', 'solve', 'resolve',
-        'wrong', 'incorrect', 'unexpected', 'doesnt work', "doesn't work",
-        'fails', 'failed', 'failure', 'broken', 'stuck', 'cant', "can't",
-        'unable to', 'trouble', 'troubleshoot', 'help me', 'whats wrong', "what's wrong",
-        'cannot', 'wont', "won't", 'refused', 'denied', 'timeout', 'connection',
-        'disconnect', 'unresponsive', 'slow', 'hang', 'freeze'
-    ]
-    
-    # Check if input contains bug-related keywords
-    for keyword in bug_keywords:
-        if keyword in lower_input:
-            return True
-    
-    # Check for question patterns about issues
-    question_patterns = [
-        'why is', 'why does', 'why doesnt', "why doesn't", 'why wont', "why won't",
-        'how to fix', 'how do i fix', 'what is wrong', 'whats wrong with',
-        'help with', 'having trouble', 'having issues'
-    ]
-    
-    for pattern in question_patterns:
-        if pattern in lower_input:
-            return True
-    
-    # Check for file extension mentions (likely code-related)
-    import re
-    if re.search(r'\.\w{2,4}\b', user_input):  # Matches file extensions like .py, .js, etc.
-        return True
-    
-    return False
+
+def _interactive_shell(command: str):
+    """Handle shell command in interactive mode"""
+    try:
+        from .shell_executor import execute_shell_command
+        
+        # Add context about interactive mode
+        context = "Interactive mode shell command execution"
+        
+        # Execute with safety checks and confirmation
+        success, stdout, stderr = execute_shell_command(command, context)
+        
+        # Show brief result (detailed output already shown by executor)
+        if not success and stderr == "Cancelled by user":
+            console.print("[dim]Shell command cancelled[/dim]")
+            
+    except Exception as e:
+        console.print(f"[red]Shell execution error: {e}[/red]")
 
 def _interactive_fix(instruction: str):
     """Handle fix command in interactive mode"""
@@ -1595,74 +1724,61 @@ def _interactive_fix(instruction: str):
         console.print(f"[red]Fix error: {e}[/red]")
 
 def _interactive_chat(user_input: str, router, db, history, persona, context):
-    """Handle general chat in interactive mode with smart file discovery"""
+    """Handle general chat in interactive mode with intelligent file discovery"""
     try:
-        # Check if this looks like a bug/issue description that needs file analysis
-        is_debugging_request = _is_debugging_request(user_input)
+        # Always try smart file discovery first - let the LLM decide if it needs the files
+        console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")
         
-        if is_debugging_request:
-            console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")
+        # Use smart file discovery to find relevant files
+        from .file_discovery import SmartFileDiscovery
+        discovery = SmartFileDiscovery(".", console)
+        
+        # Get suggested files based on the user's description
+        suggested_files = discovery.discover_files(user_input)
+        
+        if suggested_files and suggested_files[0].score > 3.0:  # Only use if reasonably relevant
+            console.print(f"[dim]📂 Found {len(suggested_files)} potentially relevant files[/dim]")
             
-            # Use smart file discovery to find relevant files
-            from .file_discovery import SmartFileDiscovery
-            discovery = SmartFileDiscovery(".", console)
+            # Read the most relevant files automatically
+            file_contents = {}
+            for file_candidate in suggested_files[:3]:  # Top 3 files
+                try:
+                    with open(file_candidate.path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                        file_contents[file_candidate.path] = content
+                        console.print(f"[dim]📖 Analyzed: {file_candidate.path} (score: {file_candidate.score:.1f})[/dim]")
+                except Exception as e:
+                    console.print(f"[dim]⚠️ Could not read {file_candidate.path}: {e}[/dim]")
             
-            # Get suggested files based on the user's description
-            suggested_files = discovery.discover_files(user_input)
-            
-            if suggested_files:
-                console.print(f"[dim]📂 Found {len(suggested_files)} potentially relevant files[/dim]")
+            # Build comprehensive context with file contents
+            if file_contents:
+                file_context = ""
+                for file_path, content in file_contents.items():
+                    file_context += f"\n\n=== {file_path} ===\n{content}"
                 
-                # Read the most relevant files automatically
-                file_contents = {}
-                for file_candidate in suggested_files[:3]:  # Top 3 files
-                    try:
-                        with open(file_candidate.path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            file_contents[file_candidate.path] = content
-                            console.print(f"[dim]📖 Analyzed: {file_candidate.path} (score: {file_candidate.score:.1f})[/dim]")
-                    except Exception as e:
-                        console.print(f"[dim]⚠️ Could not read {file_candidate.path}: {e}[/dim]")
-                
-                # Build comprehensive context with file contents
-                if file_contents:
-                    file_context = ""
-                    for file_path, content in file_contents.items():
-                        file_context += f"\n\n=== {file_path} ===\n{content}"
-                    
-                    user_content = f"""{user_input}
+                user_content = f"""{user_input}
 
 RELEVANT FILES FOUND AND ANALYZED:
 {file_context}
 
-Please analyze the code above and provide a solution for the described issue."""
-                else:
-                    # Fallback to embedding search
-                    ctx = db.search(user_input, top_k=3)
-                    snippets = "\n\n".join(c for _,c,_ in ctx)
-                    user_content = f"""{user_input}
-        
-RELATED CODE (from embeddings):
-{snippets}"""
+Please analyze the above in context of my request. If this is a bug/issue, provide a solution. If this is a general question, use the code as reference for your answer."""
             else:
-                console.print("[dim]📂 No specific files identified, using general code search...[/dim]")
                 # Fallback to embedding search
                 ctx = db.search(user_input, top_k=3)
                 snippets = "\n\n".join(c for _,c,_ in ctx)
                 user_content = f"""{user_input}
         
-RELATED CODE:
+RELATED CODE (from embeddings):
 {snippets}"""
         else:
-            # Regular chat - use embedding search
+            console.print("[dim]📂 No specific files identified, using general code search...[/dim]")
+            # Fallback to embedding search
             ctx = db.search(user_input, top_k=3)
             snippets = "\n\n".join(c for _,c,_ in ctx)
-            
             user_content = f"""{user_input}
         
 RELATED CODE:
-{snippets}
-"""
+{snippets}"""
         
         # Add to history
         history.add_message("user", user_content, command="interactive")

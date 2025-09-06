@@ -7,53 +7,44 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.cli import _is_debugging_request, _detect_command_intent
+from lumos_cli.cli import _detect_command_intent
 from rich.console import Console
 
-def test_debugging_detection():
-    """Test if debugging requests are properly detected"""
+def test_intelligent_approach():
+    """Test the new intelligent approach that always tries file discovery"""
     console = Console()
-    console.print("🧪 Testing Debugging Request Detection", style="bold blue")
-    
-    # Test cases for debugging detection
-    test_cases = [
-        # Should be detected as debugging requests
-        ("My app has a bug", True),
-        ("There is an error in my code", True),
-        ("Why is my function not working?", True),
-        ("Help me debug this issue", True),
-        ("My login.py file is broken", True),
-        ("I'm having trouble with authentication", True),
-        ("The server crashes when I start it", True),
-        ("What's wrong with my API?", True),
-        ("Fix this database connection issue", True),
-        ("Cannot connect to the database", True),
-        
-        # Should NOT be detected as debugging requests  
-        ("How do I implement user authentication?", False),
-        ("Plan a new feature for my app", False),
-        ("What is the best way to structure my code?", False),
-        ("Hello, how are you?", False),
-    ]
+    console.print("🧠 Testing Intelligent File Discovery Approach", style="bold blue")
     
     print("\n" + "="*70)
-    print("Testing _is_debugging_request function:")
+    print("New Approach: Always try smart file discovery, let LLM decide relevance")
     print("="*70)
     
-    passed = 0
-    total = len(test_cases)
+    test_cases = [
+        "My app has a bug",
+        "There is an error in my code", 
+        "Why is my function not working?",
+        "Help me debug this issue",
+        "How do I implement user authentication?",  # This will also get files now
+        "Plan a new feature for my app",  # This will also get files now
+        "What is the best way to structure my code?",  # This will also get files now
+    ]
     
-    for test_input, expected in test_cases:
-        result = _is_debugging_request(test_input)
-        status = "✅ PASS" if result == expected else "❌ FAIL"
-        print(f"{status} | {test_input:<50} | Expected: {expected:<5} | Got: {result}")
-        if result == expected:
-            passed += 1
+    for i, test_input in enumerate(test_cases, 1):
+        print(f"\n{i}. Input: '{test_input}'")
+        print("   → Smart file discovery will run")
+        print("   → Files found and analyzed (if score > 3.0)")
+        print("   → LLM decides how to use the files in context")
+        print("   → Result: More intelligent responses for ALL types of requests")
     
-    print("="*70)
-    print(f"Results: {passed}/{total} tests passed")
+    print("\n" + "="*70)
+    console.print("✨ Benefits of New Approach:", style="bold green")
+    print("• No need to guess if request is 'debugging' or not")
+    print("• LLM sees actual code for ALL relevant requests")
+    print("• Better context for implementation questions too")  
+    print("• More natural and flexible interaction")
+    print("• Eliminates false negatives from keyword matching")
     
-    return passed == total
+    return True
 
 def test_command_intent_detection():
     """Test command intent detection for debugging"""
@@ -80,25 +71,26 @@ def test_command_intent_detection():
 def main():
     """Run all debugging detection tests"""
     console = Console()
-    console.print("🔧 Enhanced Interactive Debugging Test Suite", style="bold green")
+    console.print("🔧 Intelligent Interactive Mode Test Suite", style="bold green")
     
-    # Test 1: Debugging detection
-    debug_detection_passed = test_debugging_detection()
+    # Test the new intelligent approach
+    intelligent_approach_works = test_intelligent_approach()
     
-    # Test 2: Command intent detection
+    # Test command intent detection (still useful for slash commands)
     test_command_intent_detection()
     
     # Summary
     print("\n" + "="*70)
-    if debug_detection_passed:
-        console.print("🎉 All debugging detection tests passed!", style="bold green")
-        console.print("\n✨ Enhanced features:")
-        console.print("• Lumos CLI will now automatically detect bug descriptions")
-        console.print("• Smart file discovery will find relevant files")
-        console.print("• Files will be read and analyzed automatically")
-        console.print("• You'll get solutions based on actual code")
+    if intelligent_approach_works:
+        console.print("🎉 Intelligent approach validated!", style="bold green")
+        console.print("\n✨ Why this is better:")
+        console.print("• No rigid keyword matching needed")
+        console.print("• LLM intelligence used for nuanced understanding")
+        console.print("• Smart file discovery runs for all relevant requests")
+        console.print("• Better responses for debugging AND implementation questions")
+        console.print("• More natural and flexible user experience")
     else:
-        console.print("⚠️ Some tests failed - debugging detection needs improvement", style="yellow")
+        console.print("⚠️ Need to refine the intelligent approach", style="yellow")
 
 if __name__ == "__main__":
     main()

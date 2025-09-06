@@ -1,4 +1,5 @@
 import typer, os
+import re
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -15,6 +16,7 @@ from .error_handler import RuntimeErrorHandler, smart_start_app
 from .config import config, setup_wizard
 from .ui import create_header, create_welcome_panel, create_command_help_panel, create_status_panel, create_config_panel, print_brand_footer
 from .shell_executor import execute_shell_command
+import re
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
 console = Console()
@@ -1025,8 +1027,8 @@ def detect():
         console.print(f"  📊 Options found: {len(app_context.all_options)}")
         
         # Usage hint
-        console.print(f"\n[dim]💡 Use `lumos-cli start` to run the recommended command[/dim]")
-        console.print(f"[dim]💡 Use `lumos-cli shell --command \"<command>\"` to run any specific command[/dim]")
+        console.print(f"\n[dim]💡 Use `lumos-cli start` to run the recommended command")
+        console.print(f"[dim]💡 Use `lumos-cli shell --command \"<command>\"` to run any specific command")
         
     except Exception as e:
         console.print(f"[red]Error detecting applications: {e}[/red]")
@@ -1199,7 +1201,7 @@ def debug():
     else:
         console.print("⚠️ Ollama not available")
     
-    console.print("\n[bright_green]✅ Debug information complete![/bright_green]")
+    console.print("\n[bright_green]✅ Debug information complete![/green]")
     console.print("[dim]Tip: If you see issues above, run 'lumos-cli setup' to reconfigure[/dim]")
     console.print("[dim]Logs: Run 'lumos-cli logs' to see detailed log files[/dim]")
 
@@ -1207,7 +1209,7 @@ def debug():
 def config_command(
     action: str = typer.Argument(help="Action: set, get, list, or reset"),
     key: str = typer.Argument("", help="Configuration key (e.g., 'llm.rest_api_key')"),
-    value: str = typer.Argument("", help="Value to set (for 'set' action)")
+    value: str = typer.Argument("", help="Value to set (for 'set' action")
 ):
     """Manage global Lumos CLI configuration
     
@@ -1350,9 +1352,9 @@ def platform_info():
     
     if info["is_windows"] == "True":
         console.print(f"\n[yellow]🪟 Windows-Specific Notes:[/yellow]")
-        console.print("• Config stored in: %APPDATA%\\Lumos")
-        console.print("• Logs stored in: %LOCALAPPDATA%\\Lumos\\Logs") 
-        console.print("• Ollama typically installed in: Program Files\\Ollama")
+        console.print("• Config stored in: %APPDATA%\Lumos")
+        console.print("• Logs stored in: %LOCALAPPDATA%\Lumos\Logs") 
+        console.print("• Ollama typically installed in: Program Files\Ollama")
         console.print("• Use PowerShell or Command Prompt to run lumos-cli")
         
         console.print(f"\n[dim]Ollama search locations:[/dim]")
@@ -1589,7 +1591,9 @@ def interactive_mode():
             # Smart command detection in natural language
             detected_command = _detect_command_intent(user_input)
             
-            if detected_command['type'] == 'edit':
+            if detected_command['type'] == 'jira':
+                _interactive_jira(detected_command['query'])
+            elif detected_command['type'] == 'edit':
                 _interactive_edit(detected_command['instruction'], detected_command.get('file'))
             elif detected_command['type'] == 'plan':
                 _interactive_plan(detected_command['instruction'])
@@ -1615,6 +1619,24 @@ def _detect_command_intent(user_input: str) -> dict:
     """Detect command intent from natural language"""
     lower_input = user_input.lower()
     
+    # JIRA patterns (high priority)
+    jira_ticket_pattern = r'\b([A-Z]+-\d+)\b'
+    if re.search(jira_ticket_pattern, user_input, re.IGNORECASE):
+        return {
+            'type': 'jira',
+            'query': user_input,
+            'confidence': 0.9
+        }
+
+    if 'jira' in lower_input:
+        jira_keywords = ['ticket', 'sprint', 'issue', 'board', 'project']
+        if any(keyword in lower_input for keyword in jira_keywords):
+            return {
+                'type': 'jira',
+                'query': user_input,
+                'confidence': 0.9
+            }
+    
     # Edit patterns
     edit_patterns = [
         r'^(edit|modify|update|change|fix)\s+(.+)',
@@ -1626,7 +1648,7 @@ def _detect_command_intent(user_input: str) -> dict:
     plan_patterns = [
         r'^(plan|design|architect|create plan for)\s+(.+)',
         r'^how (do i|to|can i)\s+(.+)',
-        r'^(steps|approach|strategy) (for|to)\s+(.+)'
+        r'^(steps|approach|strategy)\s+(for|to)\s+(.+)'
     ]
     
     # Review patterns
@@ -1669,7 +1691,7 @@ def _detect_command_intent(user_input: str) -> dict:
         r'^(my|the).*(app|code|program|function).*(bug|issue|problem|error|broken|not working).*'
     ]
     
-    import re
+
     
     # Check for edit intent
     for pattern in edit_patterns:
@@ -1726,7 +1748,7 @@ def _detect_command_intent(user_input: str) -> dict:
             # Fix: Add python prefix for .py files that don't already have it
             command = command.strip()
             if '.py' in command and not command.startswith('python '):
-                import re
+            
                 # Extract Python filename from command using regex
                 py_match = re.search(r'([a-zA-Z_][a-zA-Z0-9_]*\.py)', command)
                 if py_match:
@@ -1863,6 +1885,60 @@ def _interactive_fix(instruction: str):
     except Exception as e:
         console.print(f"[red]Fix error: {e}[/red]")
 
+def _interactive_jira(query: str):
+    """Handle JIRA command in interactive mode"""
+    try:
+        from .jira_client import get_jira_client, JiraTicketBrowser
+        client = get_jira_client()
+        
+        if not client:
+            console.print("[yellow]JIRA not configured. Run 'lumos-cli jira config' first.[/yellow]")
+            return
+
+        # Check for JIRA ticket key in the query
+    
+        jira_ticket_key = None
+        jira_patterns = [
+            r'\b([A-Z]+-\d+)\b',  # Standard JIRA key pattern like PROJECT-123
+            r'jira\s+([A-Z]+-\d+)',  # "jira PROJECT-123"
+            r'get\s+.*jira\s+([A-Z]+-\d+)',  # "get me jira PROJECT-123"
+            r'show\s+.*([A-Z]+-\d+)',  # "show PROJECT-123"
+            r'ticket\s+([A-Z]+-\d+)'  # "ticket PROJECT-123"
+        ]
+        for pattern in jira_patterns:
+            match = re.search(pattern, query, re.IGNORECASE)
+            if match:
+                jira_ticket_key = match.group(1).upper()
+                break
+        
+        if jira_ticket_key:
+            # Get ticket details
+            success, ticket, message = client.get_ticket_details(jira_ticket_key)
+            
+            if success:
+                console.print(f"✅ Found ticket {jira_ticket_key}")
+                
+                # Display ticket details
+                browser = JiraTicketBrowser(client)
+                browser.display_ticket_details(ticket)
+            else:
+                console.print(f"❌ Could not retrieve ticket {jira_ticket_key}: {message}")
+        else:
+            # If no ticket key is found, perform a search
+            console.print(f'🔍 Searching JIRA for: "{query}"')
+            jql = client.construct_jql(query)
+            success, tickets, message = client.search_tickets(jql)
+
+            if success:
+                console.print(f"✅ {message}")
+                browser = JiraTicketBrowser(client)
+                browser.display_tickets_table(tickets)
+            else:
+                console.print(f"❌ {message}")
+
+    except Exception as e:
+        console.print(f"[red]JIRA command error: {e}[/red]")
+
 def _interactive_chat(user_input: str, router, db, history, persona, context):
     """Handle general chat in interactive mode with intelligent file discovery"""
     try:
@@ -1924,78 +2000,6 @@ def _interactive_chat(user_input: str, router, db, history, persona, context):
             console.print("[dim]Run a program first, then ask me to analyze it.[/dim]")
             return
         
-        # Check for JIRA ticket requests
-        import re
-        jira_patterns = [
-            r'\b([A-Z]+-\d+)\b',  # Standard JIRA key pattern like PROJECT-123
-            r'jira\s+([A-Z]+-\d+)',  # "jira PROJECT-123"
-            r'get\s+.*jira\s+([A-Z]+-\d+)',  # "get me jira PROJECT-123"
-            r'show\s+.*([A-Z]+-\d+)',  # "show PROJECT-123"
-            r'ticket\s+([A-Z]+-\d+)'  # "ticket PROJECT-123"
-        ]
-        
-        jira_ticket_key = None
-        for pattern in jira_patterns:
-            match = re.search(pattern, user_input, re.IGNORECASE)
-            if match:
-                jira_ticket_key = match.group(1).upper()
-                break
-        
-        if jira_ticket_key:
-            console.print(f"[dim]🎫 Detected JIRA ticket request: {jira_ticket_key}[/dim]")
-            
-            try:
-                from .jira_client import get_jira_client, JiraTicketBrowser
-                client = get_jira_client()
-                
-                if not client:
-                    console.print("[yellow]JIRA not configured. Run 'lumos-cli jira config' first.[/yellow]")
-                    return
-                
-                # Get ticket details
-                success, ticket, message = client.get_ticket_details(jira_ticket_key)
-                
-                if success:
-                    console.print(f"✅ Found ticket {jira_ticket_key}")
-                    
-                    # Display ticket details
-                    browser = JiraTicketBrowser(client)
-                    browser.display_ticket_details(ticket)
-                    
-                    # Ask what to do next
-                    console.print("\n[dim]What would you like to do with this ticket?[/dim]")
-                    console.print("[dim]• Press 'c' to add a comment[/dim]")
-                    console.print("[dim]• Press 'd' to get more details[/dim]")
-                    console.print("[dim]• Press Enter to continue with general chat[/dim]")
-                    
-                    try:
-                        action = input("Action: ").lower().strip()
-                        
-                        if action == 'c':
-                            comment = input("Enter comment: ")
-                            if comment.strip():
-                                success, result = client.add_comment(jira_ticket_key, comment)
-                                console.print(result)
-                        elif action == 'd':
-                            console.print(f"[dim]Full ticket details already displayed above[/dim]")
-                        # For Enter or anything else, continue to normal chat
-                        
-                    except KeyboardInterrupt:
-                        console.print("\n[dim]Continuing with normal chat...[/dim]")
-                    
-                    # Add to history
-                    history.add_message("user", user_input, command="jira_ticket")
-                    history.add_message("assistant", f"Retrieved JIRA ticket {jira_ticket_key}: {ticket.summary}", command="jira_ticket")
-                    return
-                    
-                else:
-                    console.print(f"❌ Could not retrieve ticket {jira_ticket_key}: {message}")
-                    console.print("[dim]Continuing with normal chat processing...[/dim]")
-                    
-            except Exception as e:
-                console.print(f"[red]Error accessing JIRA: {e}[/red]")
-                console.print("[dim]Continuing with normal chat processing...[/dim]")
-        
         # Always try smart file discovery first - let the LLM decide if it needs the files
         console.print("[dim]🔍 Analyzing your request and searching for relevant files...[/dim]")
         
@@ -2026,29 +2030,20 @@ def _interactive_chat(user_input: str, router, db, history, persona, context):
                 for file_path, content in file_contents.items():
                     file_context += f"\n\n=== {file_path} ===\n{content}"
                 
-                user_content = f"""{user_input}
-
-RELEVANT FILES FOUND AND ANALYZED:
-{file_context}
-
-Please analyze the above in context of my request. If this is a bug/issue, provide a solution. If this is a general question, use the code as reference for your answer."""
+                user_content = f"""{user_input}\n\nRELEVANT FILES FOUND AND ANALYZED:\n{file_context}\n\nPlease analyze the above in context of my request. If this is a bug/issue, provide a solution. If this is a general question, use the code as reference for your answer."""
             else:
                 # Fallback to embedding search
                 ctx = db.search(user_input, top_k=3)
                 snippets = "\n\n".join(c for _,c,_ in ctx)
-                user_content = f"""{user_input}
-        
-RELATED CODE (from embeddings):
-{snippets}"""
+                user_content = f"""{user_input}\n        
+RELATED CODE (from embeddings):\n{snippets}"""
         else:
             console.print("[dim]📂 No specific files identified, using general code search...[/dim]")
             # Fallback to embedding search
             ctx = db.search(user_input, top_k=3)
             snippets = "\n\n".join(c for _,c,_ in ctx)
-            user_content = f"""{user_input}
-        
-RELATED CODE:
-{snippets}"""
+            user_content = f"""{user_input}\n        
+RELATED CODE:\n{snippets}"""
         
         # Add to history
         history.add_message("user", user_content, command="interactive")

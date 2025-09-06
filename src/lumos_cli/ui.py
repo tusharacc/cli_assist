@@ -49,16 +49,34 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
             is_configured = config.is_rest_api_configured(debug=True)
             log_debug(f"UI Header: OpenAI API configured result: {is_configured}")
         
-        # Create status table
-        status_table = Table(show_header=False, show_lines=False, padding=(0, 1), box=None)
-        status_table.add_column(style="dim")
-        status_table.add_column()
-        
-        status_table.add_row("🤖", f"Ollama {ollama_status}")
-        status_table.add_row("🌐", f"OpenAI/GPT {openai_status}")
-        status_table.add_row("🏢", f"Enterprise LLM {enterprise_status}")
-        status_table.add_row("📁", f"Repository-aware")
-        status_table.add_row("🛡️", f"Safety enabled")
+        # Get integration status for more accurate display
+        try:
+            from .cli import check_integration_status
+            integration_status = check_integration_status()
+            
+            # Create status table with integration status
+            status_table = Table(show_header=False, show_lines=False, padding=(0, 1), box=None)
+            status_table.add_column(style="dim")
+            status_table.add_column()
+            
+            status_table.add_row("🤖", integration_status['ollama']['message'])
+            status_table.add_row("🌐", f"OpenAI/GPT {openai_status}")
+            status_table.add_row("🏢", integration_status['enterprise_llm']['message'])
+            status_table.add_row("🐙", integration_status['github']['message'])
+            status_table.add_row("🔧", integration_status['jenkins']['message'])
+            status_table.add_row("🎫", integration_status['jira']['message'])
+            
+        except Exception as e:
+            # Fallback to basic status if integration status fails
+            status_table = Table(show_header=False, show_lines=False, padding=(0, 1), box=None)
+            status_table.add_column(style="dim")
+            status_table.add_column()
+            
+            status_table.add_row("🤖", f"Ollama {ollama_status}")
+            status_table.add_row("🌐", f"OpenAI/GPT {openai_status}")
+            status_table.add_row("🏢", f"Enterprise LLM {enterprise_status}")
+            status_table.add_row("📁", f"Repository-aware")
+            status_table.add_row("🛡️", f"Safety enabled")
     
     # Create the main header panel
     if show_status:

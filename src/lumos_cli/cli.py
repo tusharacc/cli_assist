@@ -1645,29 +1645,6 @@ def interactive_mode():
     console.clear()
     create_header(console, subtitle="Interactive AI Assistant")
     
-    # Check and display integration status
-    integration_status = check_integration_status()
-    
-    # Create integration status display
-    status_table = Table(show_header=False, box=box.ROUNDED, padding=(0, 1))
-    status_table.add_column(style="bold blue", width=20)
-    status_table.add_column(style="bold blue", width=20)
-    status_table.add_column(style="bold blue", width=20)
-    status_table.add_column(style="bold blue", width=20)
-    status_table.add_column(style="bold blue", width=20)
-    
-    # Add status row
-    status_table.add_row(
-        integration_status['ollama']['message'],
-        integration_status['enterprise_llm']['message'],
-        integration_status['github']['message'],
-        integration_status['jenkins']['message'],
-        integration_status['jira']['message']
-    )
-    
-    console.print(status_table)
-    console.print()
-    
     # Show welcome panel with project info
     project_info = {
         'name': os.path.basename(repo_stats['repo_path']),

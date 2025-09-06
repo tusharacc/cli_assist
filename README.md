@@ -35,19 +35,40 @@ A smart CLI-based LLM code assistant that brings the power of AI to your command
 - **Dependency-aware suggestions** - Understands your tech stack
 - **Caching & performance** - Fast context retrieval with smart caching
 
+### Enterprise Integrations
+- **GitHub Integration** - Clone repos, check PRs, manage issues
+- **Jenkins Integration** - Monitor CI/CD pipelines, analyze build failures
+- **JIRA Integration** - Search tickets, add comments, track issues
+- **Interactive Configuration** - Guided setup for all integrations
+
 ## 🛠 Installation
 
 ```bash
 # Clone the repository
-git clone <repository-url>
-cd llm_cli_scaffold_full
+git clone https://github.com/tusharacc/cli_assist.git
+cd cli_assist
 
 # Install in development mode
 pip install -e .
+
+# Or install from PyPI (when available)
+pip install lumos-cli
 ```
 
 ## ⚙️ Configuration
 
+### Quick Setup
+```bash
+# Run the setup wizard
+lumos-cli setup
+
+# Or configure integrations interactively
+lumos-cli github-config
+lumos-cli jenkins-config
+lumos-cli jira config
+```
+
+### Manual Configuration
 Set up your environment variables:
 
 ```bash
@@ -75,13 +96,16 @@ export LLM_EMBED_DB=".lumos_embeddings.db"
 
 ```bash
 # Start interactive assistant (like Claude Code)
-lumos-cli
+lumos-cli chat
 
 # Now you can chat naturally:
 🤖 You: add error handling
 🤖 You: plan user authentication  
 🤖 You: review api.py
 🤖 You: how do I implement JWT tokens?
+🤖 You: github tusharacc/cli_assist
+🤖 You: jenkins failed jobs last 4 hours
+🤖 You: jira PROJ-123
 ```
 
 ### 📝 Smart File Discovery
@@ -115,7 +139,76 @@ lumos-cli debug src/auth.py "login function not working"
 lumos-cli chat --session session_20240905_120000
 ```
 
-### Safety Commands
+## 🔗 Enterprise Integrations
+
+### GitHub Integration
+```bash
+# Configure GitHub
+lumos-cli github-config
+
+# Clone repositories
+lumos-cli github-clone microsoft/vscode
+lumos-cli github-clone tusharacc/cli_assist --branch main
+
+# Check pull requests
+lumos-cli github-pr microsoft/vscode --list-all
+lumos-cli github-pr tusharacc/cli_assist --branch RC1
+lumos-cli github-pr microsoft/vscode --pr-number 12345
+
+# Natural language queries in chat mode
+🤖 You: "show me PRs for microsoft/vscode"
+🤖 You: "clone the latest version of cli_assist"
+```
+
+### Jenkins Integration
+```bash
+# Configure Jenkins
+lumos-cli jenkins-config
+
+# Find failed jobs
+lumos-cli jenkins-failed-jobs
+lumos-cli jenkins-failed-jobs --folder scimarketplace/deploy-all --hours 8
+
+# Find running jobs
+lumos-cli jenkins-running-jobs
+lumos-cli jenkins-running-jobs --folder scimarketplace/addresssearch_multi/RC1
+
+# Repository and branch queries
+lumos-cli jenkins-repository-jobs externaldata RC1
+lumos-cli jenkins-repository-jobs addresssearch RC2
+
+# Build analysis
+lumos-cli jenkins-build-parameters scimarketplace/deploy-all/my-job 123
+lumos-cli jenkins-analyze-failure scimarketplace/deploy-all/my-job 123
+
+# Natural language queries in chat mode
+🤖 You: "are there failed jobs in last 4 hours in folder deploy-all?"
+🤖 You: "is there any job running for repository externaldata in branch RC1?"
+🤖 You: "check console text and let me know why job 456 failed"
+```
+
+### JIRA Integration
+```bash
+# Configure JIRA
+lumos-cli jira config
+
+# Search tickets
+lumos-cli jira search -q "my open tickets"
+lumos-cli jira search -q "bugs in current sprint"
+
+# Browse tickets interactively
+lumos-cli jira browse
+
+# Add comments
+lumos-cli jira comment ABC-123 -c "Progress update"
+
+# Natural language queries in chat mode
+🤖 You: "get me jira PROJ-123"
+🤖 You: "show ALPHA-456"
+🤖 You: "search for open tickets assigned to me"
+```
+
+## 🛡️ Safety Commands
 
 ```bash
 # List available backups
@@ -128,7 +221,7 @@ lumos-cli backups src/auth.py
 lumos-cli restore .llm_backups/auth.py.20240905_120000.bak
 ```
 
-### History & Session Commands
+## 📊 History & Session Commands
 
 ```bash
 # Show repository chat history statistics  
@@ -147,7 +240,7 @@ lumos-cli repos
 lumos-cli cleanup --days 30 --no-dry-run
 ```
 
-### Project Scaffolding
+## 🏗️ Project Scaffolding
 
 ```bash
 # List available project templates
@@ -163,7 +256,7 @@ lumos-cli scaffold node-web-express my-server
 lumos-cli scaffold python-web-fastapi api --dry-run
 ```
 
-### Persona & Context Commands
+## 🧠 Persona & Context Commands
 
 ```bash
 # Show current repository analysis
@@ -179,7 +272,7 @@ lumos-cli context
 lumos-cli persona --action cache
 ```
 
-### Command Options
+## 🔧 Advanced Options
 
 ```bash
 # Force changes without preview
@@ -207,6 +300,7 @@ Lumos automatically chooses the best model for each task:
 | Debugging | Local (Devstral) | Immediate assistance |
 | Planning | Enterprise/OpenAI | High-level reasoning |
 | Architecture | Enterprise/OpenAI | Complex explanations |
+| GitHub/Jenkins/JIRA | OpenAI | API integration tasks |
 
 ## 🏢 Enterprise LLM Support
 
@@ -241,24 +335,45 @@ python test_enterprise_llm.py
 lumos-cli config-show
 ```
 
-## 🔒 Safety Features
+## 🔒 Security Features
 
 - **Preview diffs** before applying any changes
 - **Automatic backups** with timestamps
 - **Syntax validation** for common languages
 - **User confirmation** for destructive operations
 - **Easy rollback** from backups
+- **Secure credential storage** for integrations
+- **File permission protection** (600) for config files
 
 ## 📁 Project Structure
 
 ```
 src/lumos_cli/
-├── cli.py          # Main CLI interface
-├── client.py       # LLM routing and API calls
-├── embeddings.py   # Code indexing and search
-├── prompts.py      # Prompt templates
-└── safety.py       # Preview and backup system
+├── cli.py                    # Main CLI interface
+├── client.py                 # LLM routing and API calls
+├── embeddings.py             # Code indexing and search
+├── prompts.py                # Prompt templates
+├── safety.py                 # Preview and backup system
+├── github_client.py          # GitHub REST API client
+├── jenkins_client.py         # Jenkins REST API client
+├── jira_client.py            # JIRA REST API client
+├── github_config_manager.py  # GitHub configuration
+├── jenkins_config_manager.py # Jenkins configuration
+├── commands/                 # Modular command structure
+│   ├── github.py
+│   ├── jenkins.py
+│   └── __init__.py
+└── interactive/              # Interactive mode components
+    ├── intent_detection.py
+    ├── jenkins_handler.py
+    └── __init__.py
 ```
+
+## 📚 Documentation
+
+- **[GitHub Integration Guide](GITHUB_INTEGRATION.md)** - Complete GitHub setup and usage
+- **[Jenkins Integration Guide](JENKINS_INTEGRATION.md)** - Enterprise CI/CD integration
+- **[Refactoring Plan](REFACTORING_PLAN.md)** - CLI architecture improvements
 
 ## 🤝 Contributing
 
@@ -286,6 +401,21 @@ $ lumos-cli edit api.py "fix the memory leak in process_request"
 ```bash
 $ lumos-cli preview auth.py "add JWT token validation"
 # Shows diff, then ask if you want to apply
+```
+
+### Enterprise Workflow
+```bash
+# Check for failed builds
+$ lumos-cli jenkins-failed-jobs --hours 4
+
+# Clone a repository
+$ lumos-cli github-clone microsoft/vscode
+
+# Check for PRs
+$ lumos-cli github-pr microsoft/vscode --list-all
+
+# Look up a JIRA ticket
+$ lumos-cli jira search -q "PROJ-123"
 ```
 
 ## 🎉 Why "Lumos"?

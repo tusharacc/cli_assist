@@ -5,6 +5,7 @@ Jira client for ticket operations
 
 import json
 import os
+import requests
 from typing import Dict, Optional, List
 from .debug_logger import debug_logger
 from .platform_utils import get_config_directory
@@ -135,11 +136,44 @@ class JiraClient:
         """Get ticket details from Jira"""
         debug_logger.log_function_call("JiraClient.get_ticket", kwargs={"ticket_id": ticket_id})
         
-        # Mock implementation - in real implementation, this would call Jira API
-        mock_ticket = {
+        if not self.username or not self.api_token:
+            debug_logger.warning("Jira credentials not configured, returning mock data")
+            return self._get_mock_ticket(ticket_id)
+        
+        try:
+            # Make real API call to Jira
+            url = f"{self.base_url}/rest/api/3/issue/{ticket_id}"
+            auth = (self.username, self.api_token)
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            
+            debug_logger.info(f"Making Jira API call to: {url}")
+            response = requests.get(url, auth=auth, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                ticket = self._parse_jira_ticket(data)
+                debug_logger.log_function_return("JiraClient.get_ticket", f"Retrieved real ticket {ticket_id}")
+                return ticket
+            elif response.status_code == 404:
+                debug_logger.warning(f"Ticket {ticket_id} not found")
+                return None
+            else:
+                debug_logger.error(f"Jira API error: {response.status_code} - {response.text}")
+                return self._get_mock_ticket(ticket_id)
+                
+        except Exception as e:
+            debug_logger.error(f"Error calling Jira API: {e}")
+            return self._get_mock_ticket(ticket_id)
+    
+    def _get_mock_ticket(self, ticket_id: str) -> Dict:
+        """Get mock ticket data as fallback"""
+        return {
             'key': ticket_id,
             'summary': f'Mock ticket summary for {ticket_id}',
-            'description': f'This is a mock description for ticket {ticket_id}. In a real implementation, this would fetch actual ticket details from Jira API.',
+            'description': f'This is a mock description for ticket {ticket_id}. Jira API call failed or credentials not configured.',
             'status': 'In Progress',
             'assignee': 'John Doe',
             'priority': 'Medium',
@@ -151,9 +185,57 @@ class JiraClient:
             'issuetype': 'Bug',
             'components': ['Frontend', 'Authentication']
         }
+    
+    def _parse_jira_ticket(self, data: Dict) -> Dict:
+        """Parse Jira API response into our ticket format"""
+        fields = data.get('fields', {})
         
-        debug_logger.log_function_return("JiraClient.get_ticket", f"Retrieved ticket {ticket_id}")
-        return mock_ticket
+        # Extract assignee info
+        assignee = fields.get('assignee', {})
+        assignee_name = assignee.get('displayName', 'Unassigned') if assignee else 'Unassigned'
+        
+        # Extract reporter info
+        reporter = fields.get('reporter', {})
+        reporter_name = reporter.get('displayName', 'Unknown') if reporter else 'Unknown'
+        
+        # Extract status info
+        status = fields.get('status', {})
+        status_name = status.get('name', 'Unknown') if status else 'Unknown'
+        
+        # Extract priority info
+        priority = fields.get('priority', {})
+        priority_name = priority.get('name', 'Medium') if priority else 'Medium'
+        
+        # Extract issue type
+        issue_type = fields.get('issuetype', {})
+        issue_type_name = issue_type.get('name', 'Task') if issue_type else 'Task'
+        
+        # Extract project info
+        project = fields.get('project', {})
+        project_key = project.get('key', 'UNKNOWN') if project else 'UNKNOWN'
+        
+        # Extract components
+        components = fields.get('components', [])
+        component_names = [comp.get('name', '') for comp in components if comp.get('name')]
+        
+        # Extract labels
+        labels = fields.get('labels', [])
+        
+        return {
+            'key': data.get('key', ''),
+            'summary': fields.get('summary', 'No summary'),
+            'description': fields.get('description', 'No description available'),
+            'status': status_name,
+            'assignee': assignee_name,
+            'priority': priority_name,
+            'labels': labels,
+            'created': fields.get('created', ''),
+            'updated': fields.get('updated', ''),
+            'reporter': reporter_name,
+            'project': project_key,
+            'issuetype': issue_type_name,
+            'components': component_names
+        }
     
     def search_tickets(self, jql: str, max_results: int = 50) -> List[Dict]:
         """Search tickets using JQL"""
@@ -212,8 +294,50 @@ class JiraClient:
         debug_logger.log_function_call("JiraClient._search_tickets_impl", 
                                      kwargs={"jql": jql, "max_results": max_results})
         
-        # Mock implementation
-        mock_tickets = [
+        if not self.username or not self.api_token:
+            debug_logger.warning("Jira credentials not configured, returning mock data")
+            return self._get_mock_search_results()
+        
+        try:
+            # Make real API call to Jira
+            url = f"{self.base_url}/rest/api/3/search"
+            auth = (self.username, self.api_token)
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+            
+            payload = {
+                'jql': jql,
+                'maxResults': max_results,
+                'fields': ['key', 'summary', 'status', 'assignee', 'priority', 'reporter', 'created', 'updated']
+            }
+            
+            debug_logger.info(f"Making Jira search API call with JQL: {jql}")
+            response = requests.post(url, auth=auth, headers=headers, json=payload)
+            
+            if response.status_code == 200:
+                data = response.json()
+                issues = data.get('issues', [])
+                tickets = []
+                
+                for issue in issues:
+                    ticket = self._parse_jira_ticket(issue)
+                    tickets.append(ticket)
+                
+                debug_logger.log_function_return("JiraClient._search_tickets_impl", f"Found {len(tickets)} real tickets")
+                return tickets
+            else:
+                debug_logger.error(f"Jira search API error: {response.status_code} - {response.text}")
+                return self._get_mock_search_results()
+                
+        except Exception as e:
+            debug_logger.error(f"Error calling Jira search API: {e}")
+            return self._get_mock_search_results()
+    
+    def _get_mock_search_results(self) -> List[Dict]:
+        """Get mock search results as fallback"""
+        return [
             {
                 'key': 'PLATFORM-16940',
                 'summary': 'Mock ticket for PLATFORM-16940',
@@ -229,9 +353,6 @@ class JiraClient:
                 'priority': 'Medium'
             }
         ]
-        
-        debug_logger.log_function_return("JiraClient._search_tickets_impl", f"Found {len(mock_tickets)} tickets")
-        return mock_tickets[:max_results]
     
     def construct_jql(self, query: str) -> str:
         """Construct JQL from natural language query"""

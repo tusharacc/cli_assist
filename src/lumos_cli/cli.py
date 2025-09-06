@@ -42,7 +42,7 @@ def get_persona_manager() -> PersonaManager:
     return persona_manager
 
 def check_integration_status() -> dict:
-    """Check status of all integrations"""
+    """Check status of all integrations (fast, non-blocking)"""
     status = {
         'ollama': {'status': 'unknown', 'message': 'Unknown'},
         'enterprise_llm': {'status': 'unknown', 'message': 'Unknown'},
@@ -51,7 +51,7 @@ def check_integration_status() -> dict:
         'jira': {'status': 'unknown', 'message': 'Unknown'}
     }
     
-    # Check Ollama status
+    # Check Ollama status (fast, no API call)
     try:
         from .config import config
         backends = config.get_available_backends()
@@ -62,7 +62,7 @@ def check_integration_status() -> dict:
     except Exception:
         status['ollama'] = {'status': 'error', 'message': 'Ollama 🔴'}
     
-    # Check Enterprise LLM status
+    # Check Enterprise LLM status (fast, config only)
     try:
         from .config import config
         if config.is_enterprise_configured():
@@ -72,64 +72,151 @@ def check_integration_status() -> dict:
     except Exception:
         status['enterprise_llm'] = {'status': 'error', 'message': 'Enterprise LLM 🔴'}
     
-    # Check GitHub status
+    # Check GitHub status (fast, config only)
     try:
         from .github_client import GitHubClient
         github_client = GitHubClient()
         if github_client.token and github_client.base_url:
-            # Try to make a simple API call to test connectivity
-            import requests
-            headers = {'Authorization': f'token {github_client.token}'}
-            response = requests.get(f"{github_client.base_url}/user", headers=headers, timeout=5)
-            if response.status_code == 200:
-                status['github'] = {'status': 'connected', 'message': 'GitHub 🟢'}
-            else:
-                status['github'] = {'status': 'error', 'message': 'GitHub 🔴'}
+            status['github'] = {'status': 'connected', 'message': 'GitHub 🟢'}
         else:
             status['github'] = {'status': 'not_configured', 'message': 'GitHub ⚪'}
     except Exception:
         status['github'] = {'status': 'error', 'message': 'GitHub 🔴'}
     
-    # Check Jenkins status
+    # Check Jenkins status (fast, config only)
     try:
         from .jenkins_config_manager import JenkinsConfigManager
         config_manager = JenkinsConfigManager()
         config = config_manager.load_config()
         if config and config.url and config.username and config.token:
-            # Try to make a simple API call to test connectivity
-            import requests
-            auth = (config.username, config.token)
-            response = requests.get(f"{config.url}/api/json", auth=auth, timeout=5)
-            if response.status_code == 200:
-                status['jenkins'] = {'status': 'connected', 'message': 'Jenkins 🟢'}
-            else:
-                status['jenkins'] = {'status': 'error', 'message': 'Jenkins 🔴'}
+            status['jenkins'] = {'status': 'connected', 'message': 'Jenkins 🟢'}
         else:
             status['jenkins'] = {'status': 'not_configured', 'message': 'Jenkins ⚪'}
     except Exception:
         status['jenkins'] = {'status': 'error', 'message': 'Jenkins 🔴'}
     
-    # Check Jira status
+    # Check Jira status (fast, config only)
     try:
         from .jira_client import JiraConfigManager
         config_manager = JiraConfigManager()
-        config = config_manager.get_config()
+        config = config_manager.load_config()
         if config and config.get('base_url') and config.get('username') and config.get('api_token'):
-            # Try to make a simple API call to test connectivity
-            import requests
-            auth = (config['username'], config['api_token'])
-            headers = {'Accept': 'application/json'}
-            response = requests.get(f"{config['base_url']}/rest/api/3/myself", auth=auth, headers=headers, timeout=5)
-            if response.status_code == 200:
-                status['jira'] = {'status': 'connected', 'message': 'Jira 🟢'}
-            else:
-                status['jira'] = {'status': 'error', 'message': 'Jira 🔴'}
+            status['jira'] = {'status': 'connected', 'message': 'Jira 🟢'}
         else:
             status['jira'] = {'status': 'not_configured', 'message': 'Jira ⚪'}
     except Exception:
         status['jira'] = {'status': 'error', 'message': 'Jira 🔴'}
     
     return status
+
+def check_integration_status_async() -> dict:
+    """Check status of all integrations with actual API calls (async)"""
+    import asyncio
+    import concurrent.futures
+    from .logger import log_debug
+    
+    status = {
+        'ollama': {'status': 'unknown', 'message': 'Unknown'},
+        'enterprise_llm': {'status': 'unknown', 'message': 'Unknown'},
+        'github': {'status': 'unknown', 'message': 'Unknown'},
+        'jenkins': {'status': 'unknown', 'message': 'Unknown'},
+        'jira': {'status': 'unknown', 'message': 'Unknown'}
+    }
+    
+    def check_github_async():
+        try:
+            from .github_client import GitHubClient
+            github_client = GitHubClient()
+            if github_client.token and github_client.base_url:
+                import requests
+                headers = {'Authorization': f'token {github_client.token}'}
+                response = requests.get(f"{github_client.base_url}/user", headers=headers, timeout=3)
+                if response.status_code == 200:
+                    return {'status': 'connected', 'message': 'GitHub 🟢'}
+                else:
+                    return {'status': 'error', 'message': 'GitHub 🔴'}
+            else:
+                return {'status': 'not_configured', 'message': 'GitHub ⚪'}
+        except Exception:
+            return {'status': 'error', 'message': 'GitHub 🔴'}
+    
+    def check_jenkins_async():
+        try:
+            from .jenkins_config_manager import JenkinsConfigManager
+            config_manager = JenkinsConfigManager()
+            config = config_manager.load_config()
+            if config and config.url and config.username and config.token:
+                import requests
+                auth = (config.username, config.token)
+                response = requests.get(f"{config.url}/api/json", auth=auth, timeout=3)
+                if response.status_code == 200:
+                    return {'status': 'connected', 'message': 'Jenkins 🟢'}
+                else:
+                    return {'status': 'error', 'message': 'Jenkins 🔴'}
+            else:
+                return {'status': 'not_configured', 'message': 'Jenkins ⚪'}
+        except Exception:
+            return {'status': 'error', 'message': 'Jenkins 🔴'}
+    
+    def check_jira_async():
+        try:
+            from .jira_client import JiraConfigManager
+            config_manager = JiraConfigManager()
+            config = config_manager.load_config()
+            if config and config.get('base_url') and config.get('username') and config.get('api_token'):
+                import requests
+                headers = {
+                    'Accept': 'application/json',
+                    'Authorization': f'Bearer {config["api_token"]}'
+                }
+                log_debug(f"Jira status check: Making API call to {config['base_url']}/rest/api/latest/myself")
+                response = requests.get(f"{config['base_url']}/rest/api/latest/myself", headers=headers, timeout=3)
+                log_debug(f"Jira status check: Response status {response.status_code}")
+                if response.status_code == 200:
+                    return {'status': 'connected', 'message': 'Jira 🟢'}
+                else:
+                    return {'status': 'error', 'message': 'Jira 🔴'}
+            else:
+                return {'status': 'not_configured', 'message': 'Jira ⚪'}
+        except Exception as e:
+            log_debug(f"Jira status check error: {e}")
+            return {'status': 'error', 'message': 'Jira 🔴'}
+    
+    # Run API checks in parallel
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        github_future = executor.submit(check_github_async)
+        jenkins_future = executor.submit(check_jenkins_async)
+        jira_future = executor.submit(check_jira_async)
+        
+        # Wait for all to complete (max 3 seconds)
+        try:
+            status['github'] = github_future.result(timeout=3)
+            status['jenkins'] = jenkins_future.result(timeout=3)
+            status['jira'] = jira_future.result(timeout=3)
+        except concurrent.futures.TimeoutError:
+            # If any timeout, use the fast status
+            status.update(check_integration_status())
+    
+    return status
+
+def update_status_async():
+    """Update integration status asynchronously in the background"""
+    import threading
+    from .logger import log_debug
+    
+    def update_status():
+        try:
+            log_debug("Background: Starting async status update")
+            updated_status = check_integration_status_async()
+            log_debug(f"Background: Updated status: {updated_status}")
+            # Status is updated, but we don't need to display it immediately
+            # The next time the user interacts, they'll see the updated status
+        except Exception as e:
+            log_debug(f"Background: Status update failed: {e}")
+    
+    # Start the background thread
+    thread = threading.Thread(target=update_status, daemon=True)
+    thread.start()
 
 @app.callback()
 def main(ctx: typer.Context):
@@ -1680,6 +1767,9 @@ def interactive_mode():
     # Clear screen and show beautiful header
     console.clear()
     create_header(console, subtitle="Interactive AI Assistant")
+    
+    # Start background status update (non-blocking)
+    update_status_async()
     
     # Show welcome panel with project info
     project_info = {

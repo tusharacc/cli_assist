@@ -49,7 +49,7 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
             is_configured = config.is_rest_api_configured(debug=True)
             log_debug(f"UI Header: OpenAI API configured result: {is_configured}")
         
-        # Get integration status for more accurate display
+        # Get integration status for more accurate display (fast version)
         try:
             from .cli import check_integration_status
             integration_status = check_integration_status()

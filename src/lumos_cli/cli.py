@@ -1878,19 +1878,77 @@ def _interactive_github(query: str):
         # Extract organization and repository from common patterns
         org_repo = None
         
-        # Pattern 1: "tusharacc/cli_assist" or "scimarketplace/externaldata"
+        # Pattern 1: "tusharacc/cli_assist" or "scimarketplace/externaldata" (exact format)
         org_repo_pattern = r'([a-zA-Z0-9_-]+)/([a-zA-Z0-9_-]+)'
         match = re.search(org_repo_pattern, query)
         if match:
             org_repo = f"{match.group(1)}/{match.group(2)}"
         
-        # Pattern 2: "github tusharacc cli_assist" or "repository scimarketplace externaldata"
-        words = query.split()
-        if len(words) >= 3:
-            for i, word in enumerate(words):
-                if word.lower() in ['github', 'repository', 'repo'] and i + 2 < len(words):
-                    org_repo = f"{words[i+1]}/{words[i+2]}"
-                    break
+        # Pattern 2: "repository externaldata in organization scimarketplace" (most specific)
+        if not org_repo:
+            repo_org_pattern = r'repository\s+([a-zA-Z0-9_-]+)\s+in\s+organization\s+([a-zA-Z0-9_-]+)'
+            match = re.search(repo_org_pattern, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
+        # Pattern 3: "for repository externaldata in organization scimarketplace"
+        if not org_repo:
+            for_repo_org_pattern = r'for\s+repository\s+([a-zA-Z0-9_-]+)\s+in\s+organization\s+([a-zA-Z0-9_-]+)'
+            match = re.search(for_repo_org_pattern, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
+        # Pattern 4: "organization scimarketplace repository externaldata"
+        if not org_repo:
+            org_repo_pattern2 = r'organization\s+([a-zA-Z0-9_-]+)\s+repository\s+([a-zA-Z0-9_-]+)'
+            match = re.search(org_repo_pattern2, lower_query)
+            if match:
+                org_name = match.group(1)
+                repo_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
+        # Pattern 5: "github tusharacc cli_assist" or "repository scimarketplace externaldata" (simple format)
+        if not org_repo:
+            words = query.split()
+            if len(words) >= 3:
+                for i, word in enumerate(words):
+                    if word.lower() in ['github', 'repository', 'repo'] and i + 2 < len(words):
+                        # Make sure the next two words don't contain "in" or "organization"
+                        next_words = words[i+1:i+3]
+                        if not any(w.lower() in ['in', 'organization', 'org'] for w in next_words):
+                            org_repo = f"{words[i+1]}/{words[i+2]}"
+                            break
+        
+        # Pattern 6: "for externaldata in scimarketplace" or "externaldata in scimarketplace"
+        if not org_repo:
+            simple_pattern = r'for\s+([a-zA-Z0-9_-]+)\s+in\s+([a-zA-Z0-9_-]+)'
+            match = re.search(simple_pattern, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
+        # Pattern 7: "externaldata repo in scimarketplace org"
+        if not org_repo:
+            repo_org_simple = r'([a-zA-Z0-9_-]+)\s+repo\s+in\s+([a-zA-Z0-9_-]+)\s+org'
+            match = re.search(repo_org_simple, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
+        
+        # Pattern 8: "externaldata in scimarketplace" (simple case)
+        if not org_repo:
+            simple_in_pattern = r'([a-zA-Z0-9_-]+)\s+in\s+([a-zA-Z0-9_-]+)'
+            match = re.search(simple_in_pattern, lower_query)
+            if match:
+                repo_name = match.group(1)
+                org_name = match.group(2)
+                org_repo = f"{org_name}/{repo_name}"
         
         if not org_repo:
             console.print("[yellow]Could not detect organization/repository from your query.[/yellow]")

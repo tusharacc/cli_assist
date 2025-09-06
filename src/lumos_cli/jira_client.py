@@ -54,9 +54,8 @@ class JiraClient:
     
     def _setup_session(self):
         """Setup authenticated session with JIRA"""
-        auth = (self.config.username, self.config.token)
-        self.session.auth = auth
         self.session.headers.update({
+            'Authorization': f'Bearer {self.config.token}',
             'Accept': 'application/json',
             'Content-Type': 'application/json'
         })

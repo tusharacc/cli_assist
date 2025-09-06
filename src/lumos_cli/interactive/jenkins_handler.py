@@ -170,26 +170,35 @@ def interactive_jenkins(query: str):
                 
         # Check for failure analysis queries
         elif any(keyword in lower_query for keyword in ["why", "failed", "console", "analyze", "failure"]):
-            # Extract job path and build number
-            job_match = re.search(r"job\s+([a-zA-Z0-9_/]+)", lower_query)
-            build_match = re.search(r"(\d+)", lower_query)
+            # Extract job path and build number with better patterns
+            job_match = re.search(r"(?:job|folder)\s+([a-zA-Z0-9_/]+)", lower_query)
+            build_match = re.search(r"(?:build\s+number\s+)?(\d+)", lower_query)
             
             if job_match and build_match:
                 job_path = job_match.group(1)
                 build_number = int(build_match.group(1))
                 
+                # Auto-prepend scimarketplace if not present
+                if not job_path.startswith("scimarketplace/"):
+                    job_path = f"scimarketplace/{job_path}"
+                
                 console.print(f"[cyan]🔍 Analyzing build failure for {job_path} #{build_number}...[/cyan]")
+                console.print("[dim]Using efficient streaming analysis for large console logs...[/dim]")
+                
                 analysis = jenkins.analyze_build_failure(job_path, build_number)
                 jenkins.display_failure_analysis(analysis)
             else:
                 console.print("[red]Could not identify job path and build number in query[/red]")
+                console.print("[dim]Try: 'why did build number 20 in folder deploy-all failed'[/dim]")
                 
         else:
             console.print("[yellow]ℹ️  I can help you with Jenkins queries like:[/yellow]")
             console.print("• 'Are there failed jobs in last 4 hours in folder deploy-all'")
             console.print("• 'Is there any job running for repository externaldata in branch RC1'")
             console.print("• 'Give me the build parameters of job number 123 under folder deploy-all'")
-            console.print("• 'Check console text and let me know why job 456 failed'")
+            console.print("• 'Why did build number 20 in folder deploy-all failed'")
+            console.print("• 'Analyze failure for build 456 in folder deploy-all'")
+            console.print("• 'Get me the last 5 build status from jenkins in folder deploy-all'")
             
     except Exception as e:
         console.print(f"[red]Jenkins interactive error: {e}[/red]")

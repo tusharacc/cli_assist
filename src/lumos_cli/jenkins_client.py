@@ -5,14 +5,28 @@ Jenkins REST API client for enterprise CI/CD workflows
 import os
 import requests
 import json
+import re
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, NamedTuple
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from rich import box
 from .debug_logger import get_debug_logger
+
+class Error(NamedTuple):
+    """Represents a build error with context"""
+    line_number: int
+    content: str
+    type: str
+    priority: str = 'medium'
+
+class Warning(NamedTuple):
+    """Represents a build warning"""
+    line_number: int
+    content: str
+    type: str
 
 console = Console()
 debug_logger = get_debug_logger()
@@ -293,13 +307,16 @@ class JenkinsClient:
             return []
     
     def analyze_build_failure(self, job_path: str, build_number: int) -> Dict:
-        """Analyze why a build failed"""
+        """Analyze why a build failed using efficient streaming for large console logs"""
         try:
             build_info = self.get_build_info(job_path, build_number)
-            console_output = self.get_build_console(job_path, build_number)
             
             if not build_info:
                 return {"error": "Build not found"}
+            
+            # Use efficient streaming analysis for large console logs
+            console_url = f"{self.base_url}/job/{job_path.replace('/', '/job/')}/{build_number}/consoleText"
+            error_analysis = self._stream_analyze_console(console_url)
             
             analysis = {
                 "build_number": build_number,
@@ -307,8 +324,7 @@ class JenkinsClient:
                 "duration": build_info.get("duration", 0),
                 "timestamp": datetime.fromtimestamp(build_info.get("timestamp", 0) / 1000),
                 "url": build_info.get("url", ""),
-                "console_output": console_output,
-                "failure_analysis": self._analyze_console_output(console_output)
+                "error_analysis": error_analysis
             }
             
             return analysis
@@ -362,6 +378,205 @@ class JenkinsClient:
             "warnings": warning_lines[-5:],  # Last 5 warnings
             "total_lines": len(lines)
         }
+    
+    def _stream_analyze_console(self, console_url: str) -> Dict:
+        """Stream analyze console output for errors efficiently"""
+        debug_logger.log_function_call("JenkinsClient._stream_analyze_console", kwargs={"console_url": console_url})
+        
+        errors = []
+        warnings = []
+        line_number = 0
+        
+        try:
+            with requests.get(console_url, stream=True, timeout=30) as response:
+                response.raise_for_status()
+                
+                current_chunk = ""
+                for chunk in response.iter_content(chunk_size=8192, decode_unicode=True):
+                    current_chunk += chunk
+                    
+                    # Process complete lines
+                    while '\n' in current_chunk:
+                        line, current_chunk = current_chunk.split('\n', 1)
+                        line_number += 1
+                        
+                        # Quick error detection
+                        error = self._quick_error_detect(line, line_number)
+                        if error:
+                            errors.append(error)
+                        
+                        # Quick warning detection
+                        warning = self._quick_warning_detect(line, line_number)
+                        if warning:
+                            warnings.append(warning)
+                
+                # Process remaining chunk
+                if current_chunk.strip():
+                    line_number += 1
+                    error = self._quick_error_detect(current_chunk, line_number)
+                    if error:
+                        errors.append(error)
+                    
+                    warning = self._quick_warning_detect(current_chunk, line_number)
+                    if warning:
+                        warnings.append(warning)
+            
+            # Analyze collected errors
+            analysis = self._analyze_errors(errors, warnings)
+            debug_logger.log_function_return("JenkinsClient._stream_analyze_console", f"Found {len(errors)} errors, {len(warnings)} warnings")
+            return analysis
+            
+        except Exception as e:
+            debug_logger.error(f"Stream analysis failed: {e}")
+            return {"error": f"Console analysis failed: {str(e)}"}
+    
+    def _quick_error_detect(self, line: str, line_number: int) -> Optional[Error]:
+        """Fast error detection for streaming analysis"""
+        
+        # Critical error patterns (most common and important)
+        critical_patterns = [
+            (r'\[ERROR\]', 'error'),
+            (r'BUILD FAILED', 'build_failed'),
+            (r'Exception in thread', 'exception'),
+            (r'FATAL', 'fatal'),
+            (r'Compilation failed', 'compilation'),
+            (r'Test failure', 'test_failure'),
+            (r'Could not resolve', 'dependency'),
+            (r'Missing dependency', 'dependency'),
+            (r'Failed to', 'failed'),
+            (r'Error:', 'error'),
+            (r'Cannot', 'cannot'),
+            (r'Unable to', 'unable')
+        ]
+        
+        # Check patterns in order of priority
+        for pattern, error_type in critical_patterns:
+            if re.search(pattern, line, re.IGNORECASE):
+                priority = 'high' if error_type in ['build_failed', 'fatal', 'exception'] else 'medium'
+                return Error(
+                    line_number=line_number,
+                    content=line.strip(),
+                    type=error_type,
+                    priority=priority
+                )
+        
+        return None
+    
+    def _quick_warning_detect(self, line: str, line_number: int) -> Optional[Warning]:
+        """Fast warning detection for streaming analysis"""
+        
+        warning_patterns = [
+            (r'\[WARNING\]', 'warning'),
+            (r'\[WARN\]', 'warning'),
+            (r'Deprecated', 'deprecated'),
+            (r'Warning:', 'warning'),
+            (r'Note:', 'note')
+        ]
+        
+        for pattern, warning_type in warning_patterns:
+            if re.search(pattern, line, re.IGNORECASE):
+                return Warning(
+                    line_number=line_number,
+                    content=line.strip(),
+                    type=warning_type
+                )
+        
+        return None
+    
+    def _analyze_errors(self, errors: List[Error], warnings: List[Warning]) -> Dict:
+        """Analyze errors with smart context extraction"""
+        
+        if not errors:
+            return {
+                "error_count": 0,
+                "warning_count": len(warnings),
+                "analysis": "No errors found",
+                "warnings": [{"line": w.line_number, "content": w.content, "type": w.type} for w in warnings[-5:]]
+            }
+        
+        # Group errors by type
+        error_groups = self._group_errors_by_type(errors)
+        
+        # Find root cause (first high-priority error)
+        root_cause = self._find_root_cause(errors)
+        
+        # Generate suggestions
+        suggestions = self._generate_suggestions(error_groups)
+        
+        analysis = {
+            "error_count": len(errors),
+            "warning_count": len(warnings),
+            "root_cause": {
+                "line_number": root_cause.line_number,
+                "content": root_cause.content,
+                "type": root_cause.type,
+                "priority": root_cause.priority
+            } if root_cause else None,
+            "error_groups": error_groups,
+            "suggestions": suggestions,
+            "warnings": [{"line": w.line_number, "content": w.content, "type": w.type} for w in warnings[-5:]]
+        }
+        
+        return analysis
+    
+    def _group_errors_by_type(self, errors: List[Error]) -> Dict[str, List[Dict]]:
+        """Group errors by type for better analysis"""
+        
+        groups = {}
+        for error in errors:
+            error_type = error.type
+            if error_type not in groups:
+                groups[error_type] = []
+            groups[error_type].append({
+                "line_number": error.line_number,
+                "content": error.content,
+                "priority": error.priority
+            })
+        
+        # Sort each group by priority and line number
+        for error_type in groups:
+            groups[error_type].sort(key=lambda x: (x['priority'], x['line_number']))
+        
+        return groups
+    
+    def _find_root_cause(self, errors: List[Error]) -> Optional[Error]:
+        """Find the root cause error (first high-priority error)"""
+        
+        # Sort by priority and line number
+        sorted_errors = sorted(errors, key=lambda x: (x.priority, x.line_number))
+        
+        # Return first high-priority error
+        for error in sorted_errors:
+            if error.priority == 'high':
+                return error
+        
+        # Fallback to first error
+        return sorted_errors[0] if sorted_errors else None
+    
+    def _generate_suggestions(self, error_groups: Dict[str, List[Dict]]) -> List[str]:
+        """Generate suggestions based on error types"""
+        
+        suggestions = []
+        
+        if 'compilation' in error_groups:
+            suggestions.append("Check compilation errors - verify syntax and dependencies")
+        
+        if 'test_failure' in error_groups:
+            suggestions.append("Review test failures - check test data and assertions")
+        
+        if 'dependency' in error_groups:
+            suggestions.append("Resolve dependency issues - check repository access and versions")
+        
+        if 'build_failed' in error_groups:
+            suggestions.append("Build process failed - check build configuration and environment")
+        
+        if 'exception' in error_groups:
+            suggestions.append("Runtime exception occurred - check application logs and configuration")
+        
+        if 'fatal' in error_groups:
+            suggestions.append("Fatal error detected - check system resources and critical dependencies")
+        
+        return suggestions
     
     def display_failed_jobs_table(self, failed_jobs: List[Dict]):
         """Display failed jobs in a formatted table"""
@@ -428,7 +643,7 @@ class JenkinsClient:
         console.print(table)
     
     def display_failure_analysis(self, analysis: Dict):
-        """Display build failure analysis"""
+        """Display build failure analysis with enhanced error reporting"""
         if "error" in analysis:
             console.print(f"[red]❌ Error: {analysis['error']}[/red]")
             return
@@ -443,29 +658,38 @@ URL: {analysis['url']}
         
         console.print(Panel(info_text, title="Build Information", border_style="blue"))
         
-        # Failure analysis
-        failure = analysis.get("failure_analysis", {})
-        if failure.get("error_count", 0) > 0:
-            console.print(f"\n[red]❌ Found {failure['error_count']} errors:[/red]")
-            
-            for error in failure.get("errors", []):
-                console.print(f"[red]Line {error['line_number']}: {error['content']}[/red]")
-                # Show context
-                for ctx_line in error.get("context", []):
-                    console.print(f"[dim]  {ctx_line}[/dim]")
-                console.print()
+        # Enhanced failure analysis
+        error_analysis = analysis.get("error_analysis", {})
         
-        if failure.get("warning_count", 0) > 0:
-            console.print(f"[yellow]⚠️  Found {failure['warning_count']} warnings[/yellow]")
-        
-        # Console output (last 50 lines)
-        console_output = analysis.get("console_output", "")
-        if console_output:
-            lines = console_output.split('\n')
-            last_lines = lines[-50:] if len(lines) > 50 else lines
+        if error_analysis.get("error_count", 0) > 0:
+            console.print(f"\n[red]❌ Found {error_analysis['error_count']} errors, {error_analysis.get('warning_count', 0)} warnings[/red]")
             
-            console.print(Panel(
-                '\n'.join(last_lines),
-                title="Console Output (Last 50 lines)",
-                border_style="yellow"
-            ))
+            # Show root cause
+            root_cause = error_analysis.get("root_cause")
+            if root_cause:
+                console.print(f"\n[red]🎯 Root Cause (Line {root_cause['line_number']}):[/red]")
+                console.print(f"[red]{root_cause['content']}[/red]")
+                console.print(f"[dim]Type: {root_cause['type']} | Priority: {root_cause['priority']}[/dim]")
+            
+            # Show error groups
+            error_groups = error_analysis.get("error_groups", {})
+            for error_type, errors in error_groups.items():
+                console.print(f"\n[yellow]📋 {error_type.replace('_', ' ').title()} Errors:[/yellow]")
+                for error in errors[:5]:  # Show first 5 errors of each type
+                    console.print(f"[red]  Line {error['line_number']}: {error['content'][:100]}{'...' if len(error['content']) > 100 else ''}[/red]")
+            
+            # Show suggestions
+            suggestions = error_analysis.get("suggestions", [])
+            if suggestions:
+                console.print(f"\n[blue]💡 Suggestions:[/blue]")
+                for suggestion in suggestions:
+                    console.print(f"[blue]  • {suggestion}[/blue]")
+        
+        elif error_analysis.get("warning_count", 0) > 0:
+            console.print(f"\n[yellow]⚠️  Found {error_analysis['warning_count']} warnings (no errors)[/yellow]")
+            warnings = error_analysis.get("warnings", [])
+            for warning in warnings[:5]:
+                console.print(f"[yellow]  Line {warning['line']}: {warning['content'][:100]}{'...' if len(warning['content']) > 100 else ''}[/yellow]")
+        
+        else:
+            console.print(f"\n[green]✅ No errors or warnings found in console output[/green]")

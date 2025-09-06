@@ -1518,7 +1518,7 @@ def logs(lines: int = 50, debug_only: bool = True, show_files: bool = True):
 # JIRA Integration Commands
 @app.command()
 def jira(
-    action: str = typer.Argument(help="Action: config, search, browse, comment"),
+    action: str = typer.Argument(help="Action: config, search, browse, comment, comments"),
     query: str = typer.Option("", "--query", "-q", help="Search query or ticket key"),
     comment_text: str = typer.Option("", "--comment", "-c", help="Comment text to add")
 ):
@@ -1529,6 +1529,7 @@ def jira(
       lumos-cli jira search -q "my open tickets"     → Search for tickets  
       lumos-cli jira browse                          → Interactive ticket browser
       lumos-cli jira comment ABC-123 -c "Progress update" → Add comment to ticket
+      lumos-cli jira comments ABC-123                → Extract comments from ticket
     """
     from .jira_client import get_jira_client, JiraConfigManager, JiraTicketBrowser
     
@@ -1625,8 +1626,43 @@ def jira(
         success, result = client.add_comment(query, comment_text)
         console.print(result)
     
+    elif action == "comments":
+        # Extract comments from ticket
+        client = get_jira_client()
+        if not client:
+            return
+        
+        if not query:
+            query = typer.prompt("Enter ticket key (e.g., ABC-123)")
+        
+        console.print(f"🔍 Extracting comments for ticket: {query}")
+        
+        comments = client.get_ticket_comments(query)
+        
+        if comments:
+            console.print(f"✅ Found {len(comments)} comments for {query}")
+            console.print()
+            
+            for i, comment in enumerate(comments, 1):
+                console.print(f"[bold blue]Comment #{i}[/bold blue]")
+                console.print(f"[dim]Author: {comment['author']}[/dim]")
+                console.print(f"[dim]Created: {comment['created']}[/dim]")
+                console.print(f"[dim]Visibility: {comment['visibility']}[/dim]")
+                console.print()
+                console.print(f"[white]{comment['body']}[/white]")
+                console.print()
+                console.print("-" * 80)
+                console.print()
+        else:
+            console.print(f"❌ No comments found for ticket {query}")
+            console.print("This could mean:")
+            console.print("• The ticket doesn't exist")
+            console.print("• The ticket has no comments")
+            console.print("• You don't have permission to view comments")
+            console.print("• Jira API connection failed")
+    
     else:
-        console.print("[red]Invalid action. Use: config, search, browse, or comment[/red]")
+        console.print("[red]Invalid action. Use: config, search, browse, comment, or comments[/red]")
         console.print("Run 'lumos-cli jira --help' for examples")
 
 @app.command()
@@ -2228,21 +2264,52 @@ def _interactive_jira(query: str):
                 break
         
         if jira_ticket_key:
-            # Get ticket details
-            console.print(f"🔍 Calling Jira API for ticket {jira_ticket_key}...")
-            success, ticket, message = client.get_ticket_details(jira_ticket_key)
+            # Check if user wants comments specifically
+            comment_keywords = ['comment', 'comments', 'extract comment', 'get comment', 'show comment']
+            wants_comments = any(keyword in query.lower() for keyword in comment_keywords)
             
-            if success and ticket:
-                console.print(f"✅ Found ticket {jira_ticket_key}")
+            if wants_comments:
+                # Extract comments only
+                console.print(f"🔍 Extracting comments for ticket {jira_ticket_key}...")
+                comments = client.get_ticket_comments(jira_ticket_key)
                 
-                # Display ticket details
-                browser = JiraTicketBrowser(client)
-                browser.display_ticket_details(ticket)
-            else:
-                if not success:
-                    console.print(f"❌ Jira API call failed: {message}")
+                if comments:
+                    console.print(f"✅ Found {len(comments)} comments for {jira_ticket_key}")
+                    console.print()
+                    
+                    for i, comment in enumerate(comments, 1):
+                        console.print(f"[bold blue]Comment #{i}[/bold blue]")
+                        console.print(f"[dim]Author: {comment['author']}[/dim]")
+                        console.print(f"[dim]Created: {comment['created']}[/dim]")
+                        console.print(f"[dim]Visibility: {comment['visibility']}[/dim]")
+                        console.print()
+                        console.print(f"[white]{comment['body']}[/white]")
+                        console.print()
+                        console.print("-" * 80)
+                        console.print()
                 else:
-                    console.print(f"❌ Ticket {jira_ticket_key} not found or access denied")
+                    console.print(f"❌ No comments found for ticket {jira_ticket_key}")
+                    console.print("This could mean:")
+                    console.print("• The ticket doesn't exist")
+                    console.print("• The ticket has no comments")
+                    console.print("• You don't have permission to view comments")
+                    console.print("• Jira API connection failed")
+            else:
+                # Get ticket details
+                console.print(f"🔍 Calling Jira API for ticket {jira_ticket_key}...")
+                success, ticket, message = client.get_ticket_details(jira_ticket_key)
+                
+                if success and ticket:
+                    console.print(f"✅ Found ticket {jira_ticket_key}")
+                    
+                    # Display ticket details
+                    browser = JiraTicketBrowser(client)
+                    browser.display_ticket_details(ticket)
+                else:
+                    if not success:
+                        console.print(f"❌ Jira API call failed: {message}")
+                    else:
+                        console.print(f"❌ Ticket {jira_ticket_key} not found or access denied")
         else:
             # If no ticket key is found, perform a search
             console.print(f'🔍 Searching JIRA for: "{query}"')
@@ -2899,14 +2966,14 @@ def enterprise_llm(
         console.print("   2. Get your enterprise LLM Chat URL")
         console.print("   3. Get your Application ID")
         console.print("   4. Get your Application Key")
-        console.print("   5. Specify the model/resource name")
+        console.print("   5. Get your Application Resource Identifier")
         
         token_url = typer.prompt("Token URL", default="https://your-enterprise-llm.com/api/v1/token")
         chat_url = typer.prompt("Chat URL", default="https://your-enterprise-llm.com/api/v1/chat")
         app_id = typer.prompt("Application ID")
         console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
         app_key = typer.prompt("Application Key", hide_input=True)
-        app_resource = typer.prompt("Model/Resource Name", default="your-model-name")
+        app_resource = typer.prompt("Application Resource Identifier", default="your-app-resource")
         
         if not token_url or not chat_url or not app_id or not app_key or not app_resource:
             console.print("❌ All fields are required")
@@ -2929,7 +2996,7 @@ def enterprise_llm(
             console.print(f"   Token URL: {token_url}")
             console.print(f"   Chat URL: {chat_url}")
             console.print(f"   App ID: {app_id}")
-            console.print(f"   Model/Resource: {app_resource}")
+            console.print(f"   App Resource: {app_resource}")
             
         except Exception as e:
             console.print(f"❌ Enterprise LLM connection failed: {e}")

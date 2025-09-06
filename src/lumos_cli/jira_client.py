@@ -268,6 +268,67 @@ class JiraClient:
             debug_logger.error(f"Error calling Jira API: {e}")
             return None
     
+    def get_ticket_comments(self, ticket_id: str) -> List[Dict]:
+        """Get comments for a specific Jira ticket"""
+        debug_logger.log_function_call("JiraClient.get_ticket_comments", kwargs={"ticket_id": ticket_id})
+        
+        if not self.username or not self.api_token:
+            debug_logger.warning("Jira credentials not configured")
+            return []
+        
+        try:
+            # Make real API call to Jira for comments
+            url = f"{self.base_url}/rest/api/latest/issue/{ticket_id}/comment"
+            headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {self.api_token}'
+            }
+            
+            debug_logger.info(f"Making Jira comments API call to: {url}")
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                # Check if response is actually JSON
+                content_type = response.headers.get('content-type', '').lower()
+                if 'application/json' not in content_type:
+                    debug_logger.error(f"Jira comments API returned non-JSON response (content-type: {content_type})")
+                    debug_logger.error(f"Response preview: {response.text[:200]}...")
+                    return []
+                
+                try:
+                    data = response.json()
+                    comments = data.get('comments', [])
+                    parsed_comments = []
+                    
+                    for comment in comments:
+                        parsed_comment = self._parse_jira_comment(comment)
+                        parsed_comments.append(parsed_comment)
+                    
+                    debug_logger.log_function_return("JiraClient.get_ticket_comments", f"Retrieved {len(parsed_comments)} comments for {ticket_id}")
+                    return parsed_comments
+                except ValueError as e:
+                    debug_logger.error(f"Failed to parse JSON response: {e}")
+                    debug_logger.error(f"Response content: {response.text[:500]}...")
+                    return []
+            elif response.status_code == 404:
+                debug_logger.warning(f"Ticket {ticket_id} not found")
+                return []
+            elif response.status_code == 401:
+                debug_logger.error(f"Jira authentication failed: Invalid credentials")
+                return []
+            elif response.status_code == 403:
+                debug_logger.error(f"Jira access forbidden: Check permissions or API version compatibility")
+                return []
+            else:
+                debug_logger.error(f"Jira comments API error: {response.status_code}")
+                debug_logger.error(f"Response content: {response.text[:200]}...")
+                return []
+                
+        except Exception as e:
+            debug_logger.error(f"Error calling Jira comments API: {e}")
+            return []
+    
     def _get_mock_ticket(self, ticket_id: str) -> Dict:
         """Get mock ticket data as fallback"""
         return {
@@ -335,6 +396,26 @@ class JiraClient:
             'project': project_key,
             'issuetype': issue_type_name,
             'components': component_names
+        }
+    
+    def _parse_jira_comment(self, comment: Dict) -> Dict:
+        """Parse Jira comment data into our comment format"""
+        author = comment.get('author', {})
+        author_name = author.get('displayName', 'Unknown') if author else 'Unknown'
+        
+        # Extract comment body - handle both text and HTML content
+        body = comment.get('body', '')
+        if isinstance(body, dict):
+            # If body is an object (like ADF format), extract text content
+            body = body.get('content', [{}])[0].get('content', [{}])[0].get('text', 'No content')
+        
+        return {
+            'id': comment.get('id', ''),
+            'author': author_name,
+            'body': body,
+            'created': comment.get('created', ''),
+            'updated': comment.get('updated', ''),
+            'visibility': comment.get('visibility', {}).get('value', 'Public') if comment.get('visibility') else 'Public'
         }
     
     def search_tickets(self, jql: str, max_results: int = 50) -> List[Dict]:

@@ -19,8 +19,8 @@ debug_logger = get_debug_logger()
 class AppDynamicsConfig:
     """AppDynamics configuration data"""
     base_url: str
-    username: str
-    password: str
+    client_id: str
+    client_secret: str
     instance_name: str
     projects: list  # List of project names to monitor
 
@@ -59,8 +59,8 @@ class AppDynamicsConfigManager:
             
             config = AppDynamicsConfig(
                 base_url=data.get('base_url', ''),
-                username=data.get('username', ''),
-                password=data.get('password', ''),
+                client_id=data.get('client_id', ''),
+                client_secret=data.get('client_secret', ''),
                 instance_name=data.get('instance_name', ''),
                 projects=data.get('projects', [])
             )
@@ -80,8 +80,8 @@ class AppDynamicsConfigManager:
         try:
             data = {
                 'base_url': config_data.base_url,
-                'username': config_data.username,
-                'password': config_data.password,
+                'client_id': config_data.client_id,
+                'client_secret': config_data.client_secret,
                 'instance_name': config_data.instance_name,
                 'projects': config_data.projects
             }
@@ -103,7 +103,7 @@ class AppDynamicsConfigManager:
     def is_configured(self) -> bool:
         """Check if AppDynamics is configured"""
         config = self.load_config()
-        return config is not None and bool(config.base_url and config.username and config.password)
+        return config is not None and bool(config.base_url and config.client_id and config.client_secret)
     
     def setup_interactive(self) -> Optional[AppDynamicsConfig]:
         """Interactive setup for AppDynamics configuration"""
@@ -120,8 +120,11 @@ class AppDynamicsConfigManager:
         if not base_url.startswith(('http://', 'https://')):
             base_url = f"https://{base_url}"
         
-        username = Prompt.ask("Username")
-        password = Prompt.ask("Password", password=True)
+        console.print("\n[bold]OAuth2 Credentials:[/bold]")
+        console.print("You'll need OAuth2 client credentials for AppDynamics API access")
+        client_id = Prompt.ask("Client ID")
+        console.print("🔑 [dim]Your input will be hidden for security.[/dim]")
+        client_secret = Prompt.ask("Client Secret", password=True)
         
         # Get projects to monitor
         console.print("\n[bold]Projects to Monitor:[/bold]")
@@ -136,15 +139,15 @@ class AppDynamicsConfigManager:
         # Create config
         config = AppDynamicsConfig(
             base_url=base_url,
-            username=username,
-            password=password,
+            client_id=client_id,
+            client_secret=client_secret,
             instance_name=instance_name,
             projects=projects
         )
         
         # Test connection
         console.print(f"\n[bold]Testing connection to {instance_name}...[/bold]")
-        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        client = AppDynamicsClient(config.base_url, config.client_id, config.client_secret)
         
         if client.test_connection():
             console.print("[green]✅ Connection successful![/green]")

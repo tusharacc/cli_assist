@@ -18,27 +18,78 @@ debug_logger = get_debug_logger()
 class AppDynamicsClient:
     """Client for AppDynamics REST API operations"""
     
-    def __init__(self, base_url: str = None, username: str = None, password: str = None):
-        """Initialize AppDynamics client"""
+    def __init__(self, base_url: str = None, client_id: str = None, client_secret: str = None):
+        """Initialize AppDynamics client with OAuth2 authentication"""
         self.base_url = base_url or os.getenv('APPDYNAMICS_BASE_URL', '')
-        self.username = username or os.getenv('APPDYNAMICS_USERNAME', '')
-        self.password = password or os.getenv('APPDYNAMICS_PASSWORD', '')
+        self.client_id = client_id or os.getenv('APPDYNAMICS_CLIENT_ID', '')
+        self.client_secret = client_secret or os.getenv('APPDYNAMICS_CLIENT_SECRET', '')
         self.session = requests.Session()
-        
-        # Set up authentication
-        if self.username and self.password:
-            self.session.auth = (self.username, self.password)
+        self.access_token = None
+        self.token_expires_at = None
         
         debug_logger.log_function_call("AppDynamicsClient.__init__", kwargs={
             "base_url": self.base_url,
-            "username": self.username
+            "client_id": self.client_id
         })
+    
+    def _get_access_token(self) -> Optional[str]:
+        """Get OAuth2 access token using client credentials flow"""
+        debug_logger.log_function_call("AppDynamicsClient._get_access_token")
+        
+        # Check if we have a valid token
+        if self.access_token and self.token_expires_at and datetime.now() < self.token_expires_at:
+            debug_logger.log_function_return("AppDynamicsClient._get_access_token", "Using cached token")
+            return self.access_token
+        
+        try:
+            # Prepare OAuth2 token request
+            token_url = f"{self.base_url}/controller/api/oauth/access_token"
+            data = {
+                'grant_type': 'client_credentials',
+                'client_id': self.client_id,
+                'client_secret': self.client_secret
+            }
+            headers = {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+            
+            debug_logger.info(f"Requesting OAuth2 token from: {token_url}")
+            response = requests.post(token_url, data=data, headers=headers)
+            response.raise_for_status()
+            
+            token_data = response.json()
+            self.access_token = token_data.get('access_token')
+            expires_in = token_data.get('expires_in', 3600)  # Default to 1 hour
+            
+            # Set expiration time (subtract 5 minutes for safety)
+            self.token_expires_at = datetime.now() + timedelta(seconds=expires_in - 300)
+            
+            # Set up session headers for subsequent requests
+            self.session.headers.update({
+                'Authorization': f'Bearer {self.access_token}',
+                'Content-Type': 'application/vnd.appd.events+text;v=2'
+            })
+            
+            debug_logger.info("OAuth2 token obtained successfully")
+            debug_logger.log_function_return("AppDynamicsClient._get_access_token", "Success")
+            return self.access_token
+            
+        except Exception as e:
+            debug_logger.error(f"Failed to get OAuth2 token: {e}")
+            debug_logger.log_function_return("AppDynamicsClient._get_access_token", "Failed")
+            return None
     
     def test_connection(self) -> bool:
         """Test AppDynamics connection"""
         debug_logger.log_function_call("AppDynamicsClient.test_connection")
         
         try:
+            # Get OAuth2 token first
+            if not self._get_access_token():
+                debug_logger.error("Failed to obtain OAuth2 token")
+                debug_logger.log_function_return("AppDynamicsClient.test_connection", "Token failed")
+                return False
+            
             # Test with a simple API call
             response = self.session.get(f"{self.base_url}/controller/rest/applications")
             if response.status_code == 200:
@@ -59,6 +110,12 @@ class AppDynamicsClient:
         debug_logger.log_function_call("AppDynamicsClient.get_applications")
         
         try:
+            # Ensure we have a valid token
+            if not self._get_access_token():
+                debug_logger.error("Failed to obtain OAuth2 token")
+                debug_logger.log_function_return("AppDynamicsClient.get_applications", "Token failed")
+                return []
+            
             response = self.session.get(f"{self.base_url}/controller/rest/applications")
             response.raise_for_status()
             applications = response.json()

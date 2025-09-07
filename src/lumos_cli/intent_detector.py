@@ -57,7 +57,17 @@ class IntentDetector:
                 r'(graph|neo4j|database|impact|dependencies?)\s+(.+)',
                 r'(which|what)\s+(repositories?|classes?|functions?)\s+(.+)',
                 r'(impact|affected|dependencies?)\s+(.+)',
-                r'(query|search)\s+(graph|neo4j)\s+(.+)'
+                r'(query|search)\s+(graph|neo4j)\s+(.+)',
+                r'(identify|find|show|get)\s+(dependencies?|impact|affected)\s+(of|for)\s+(class|method|function)\s+(.+)',
+                r'(dependencies?|impact|affected)\s+(of|for)\s+(class|method|function)\s+(.+)\s+(from|in)\s+(neo4j|graph)',
+                r'(class|method|function)\s+(.+)\s+(dependencies?|impact|affected)',
+                r'(can you|please)\s+(identify|find|show|get)\s+(dependencies?|impact)\s+(.+)',
+                r'(dependencies?|impact)\s+(of|for)\s+(.+)',
+                r'(which|what)\s+(classes?|methods?|functions?)\s+(depend|call|use)\s+(.+)',
+                r'(analyze|check)\s+(dependencies?|impact)\s+(.+)',
+                r'(graph|neo4j)\s+(query|search|analysis)\s+(.+)',
+                r'(relationship|connections?)\s+(between|of)\s+(.+)',
+                r'(upstream|downstream)\s+(dependencies?|impact)\s+(.+)'
             ],
             'edit': [
                 r'^(edit|modify|update|change|fix)\s+(.+)',
@@ -146,6 +156,10 @@ Consider these scenarios:
 - "Show me ticket ABC-123" → jira  
 - "Get me the last 5 build status from jenkins in folder deploy-all" → jenkins
 - "What repositories are affected by changes to class Y?" → neo4j
+- "Can you identify the dependencies of class CreateCyberRiskReportResponse from neo4j" → neo4j
+- "Find impact analysis for method ValidateUser" → neo4j
+- "Which classes depend on UserService" → neo4j
+- "Show dependencies for PaymentController" → neo4j
 - "Edit the login function to add validation" → edit
 - "Review the authentication module" → review
 - "Plan the microservices architecture" → plan

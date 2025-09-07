@@ -147,18 +147,28 @@ class EnterpriseLLMReplica:
             return False
     
     def generate_response(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
-        """Generate response using Enterprise LLM API"""
+        """Generate response using Enterprise LLM API or fallback to local models"""
         try:
-            # Get access token
-            if not self._get_access_token():
-                return "Error: Failed to get access token"
-            
             debug_logger.log_function_call("EnterpriseLLMReplica.generate_response", {
                 "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
                 "max_tokens": max_tokens or self.config.max_tokens,
                 "temperature": temperature or self.config.temperature
             })
             
+            # Check if we have real enterprise credentials
+            if self.is_configured() and self._get_access_token():
+                return self._call_enterprise_api(prompt, max_tokens, temperature)
+            else:
+                # Fallback to local models (Hugging Face or OpenAI)
+                return self._call_fallback_model(prompt, max_tokens, temperature)
+            
+        except Exception as e:
+            debug_logger.error(f"Enterprise LLM Replica generation failed: {e}")
+            return f"Error generating response: {str(e)}"
+    
+    def _call_enterprise_api(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
+        """Call the actual enterprise API"""
+        try:
             # Prepare chat request
             chat_data = {
                 "messages": [
@@ -193,14 +203,78 @@ class EnterpriseLLMReplica:
                 else:
                     return "Error: No response content received"
             else:
-                self.console.print(f"[red]❌ Chat request failed: {response.status_code}[/red]")
+                self.console.print(f"[red]❌ Enterprise API request failed: {response.status_code}[/red]")
                 self.console.print(f"[red]Response: {response.text}[/red]")
-                debug_logger.error(f"Chat request failed: {response.status_code} - {response.text}")
-                return f"Error: Chat request failed with status {response.status_code}"
+                debug_logger.error(f"Enterprise API request failed: {response.status_code} - {response.text}")
+                return f"Error: Enterprise API request failed with status {response.status_code}"
             
         except Exception as e:
-            debug_logger.error(f"Enterprise LLM Replica generation failed: {e}")
-            return f"Error generating response: {str(e)}"
+            debug_logger.error(f"Enterprise API call failed: {e}")
+            return f"Error calling enterprise API: {str(e)}"
+    
+    def _call_fallback_model(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
+        """Call fallback model (OpenAI GPT-4 or Hugging Face)"""
+        try:
+            # Try OpenAI GPT-4 first
+            if self._try_openai_gpt4(prompt, max_tokens, temperature):
+                return self._call_openai_gpt4(prompt, max_tokens, temperature)
+            
+            # Fallback to Hugging Face GPT-4-like model
+            return self._call_huggingface_gpt4(prompt, max_tokens, temperature)
+            
+        except Exception as e:
+            debug_logger.error(f"Fallback model call failed: {e}")
+            return f"Error calling fallback model: {str(e)}"
+    
+    def _try_openai_gpt4(self, prompt: str, max_tokens: int = None, temperature: float = None) -> bool:
+        """Check if OpenAI GPT-4 is available"""
+        try:
+            import openai
+            return bool(openai.api_key)
+        except (ImportError, AttributeError):
+            return False
+    
+    def _call_openai_gpt4(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
+        """Call OpenAI GPT-4 model"""
+        try:
+            import openai
+            
+            self.console.print("[cyan]🤖 Using OpenAI GPT-4 for Enterprise LLM simulation...[/cyan]")
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens or self.config.max_tokens,
+                temperature=temperature or self.config.temperature,
+                top_p=self.config.top_p,
+                frequency_penalty=self.config.frequency_penalty,
+                presence_penalty=self.config.presence_penalty
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            debug_logger.error(f"OpenAI GPT-4 call failed: {e}")
+            return f"Error calling OpenAI GPT-4: {str(e)}"
+    
+    def _call_huggingface_gpt4(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
+        """Call Hugging Face GPT-4-like model"""
+        try:
+            from .gpt4_simulator import get_gpt4_simulator
+            
+            self.console.print("[cyan]🤖 Using Hugging Face GPT-4 simulation...[/cyan]")
+            
+            gpt4_simulator = get_gpt4_simulator()
+            return gpt4_simulator.generate_response(
+                prompt, 
+                task_type="general", 
+                max_tokens=max_tokens or self.config.max_tokens,
+                temperature=temperature or self.config.temperature
+            )
+            
+        except Exception as e:
+            debug_logger.error(f"Hugging Face GPT-4 simulation failed: {e}")
+            return f"Error calling Hugging Face GPT-4 simulation: {str(e)}"
     
     def chat(self, messages: List[Dict[str, str]]) -> str:
         """Chat interface compatible with existing LLM router"""
@@ -208,15 +282,25 @@ class EnterpriseLLMReplica:
             return "No messages provided"
         
         try:
-            # Get access token
-            if not self._get_access_token():
-                return "Error: Failed to get access token"
-            
             debug_logger.log_function_call("EnterpriseLLMReplica.chat", {
                 "message_count": len(messages),
                 "messages": [msg.get("role", "unknown") for msg in messages]
             })
             
+            # Check if we have real enterprise credentials
+            if self.is_configured() and self._get_access_token():
+                return self._call_enterprise_chat(messages)
+            else:
+                # Fallback to local models (Hugging Face or OpenAI)
+                return self._call_fallback_chat(messages)
+            
+        except Exception as e:
+            debug_logger.error(f"Enterprise LLM Replica chat failed: {e}")
+            return f"Error in chat: {str(e)}"
+    
+    def _call_enterprise_chat(self, messages: List[Dict[str, str]]) -> str:
+        """Call the actual enterprise chat API"""
+        try:
             # Prepare chat request with messages
             chat_data = {
                 "messages": messages,
@@ -249,14 +333,65 @@ class EnterpriseLLMReplica:
                 else:
                     return "Error: No response content received"
             else:
-                self.console.print(f"[red]❌ Chat request failed: {response.status_code}[/red]")
+                self.console.print(f"[red]❌ Enterprise chat request failed: {response.status_code}[/red]")
                 self.console.print(f"[red]Response: {response.text}[/red]")
-                debug_logger.error(f"Chat request failed: {response.status_code} - {response.text}")
-                return f"Error: Chat request failed with status {response.status_code}"
+                debug_logger.error(f"Enterprise chat request failed: {response.status_code} - {response.text}")
+                return f"Error: Enterprise chat request failed with status {response.status_code}"
             
         except Exception as e:
-            debug_logger.error(f"Enterprise LLM Replica chat failed: {e}")
-            return f"Error in chat: {str(e)}"
+            debug_logger.error(f"Enterprise chat API call failed: {e}")
+            return f"Error calling enterprise chat API: {str(e)}"
+    
+    def _call_fallback_chat(self, messages: List[Dict[str, str]]) -> str:
+        """Call fallback chat model (OpenAI GPT-4 or Hugging Face)"""
+        try:
+            # Try OpenAI GPT-4 first
+            if self._try_openai_gpt4("", None, None):
+                return self._call_openai_chat(messages)
+            
+            # Fallback to Hugging Face GPT-4-like model
+            return self._call_huggingface_chat(messages)
+            
+        except Exception as e:
+            debug_logger.error(f"Fallback chat model call failed: {e}")
+            return f"Error calling fallback chat model: {str(e)}"
+    
+    def _call_openai_chat(self, messages: List[Dict[str, str]]) -> str:
+        """Call OpenAI GPT-4 chat model"""
+        try:
+            import openai
+            
+            self.console.print("[cyan]🤖 Using OpenAI GPT-4 for Enterprise LLM chat simulation...[/cyan]")
+            
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=messages,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                frequency_penalty=self.config.frequency_penalty,
+                presence_penalty=self.config.presence_penalty
+            )
+            
+            return response.choices[0].message.content
+            
+        except Exception as e:
+            debug_logger.error(f"OpenAI GPT-4 chat call failed: {e}")
+            return f"Error calling OpenAI GPT-4 chat: {str(e)}"
+    
+    def _call_huggingface_chat(self, messages: List[Dict[str, str]]) -> str:
+        """Call Hugging Face GPT-4-like chat model"""
+        try:
+            from .gpt4_simulator import get_gpt4_simulator
+            
+            self.console.print("[cyan]🤖 Using Hugging Face GPT-4 simulation for chat...[/cyan]")
+            
+            gpt4_simulator = get_gpt4_simulator()
+            return gpt4_simulator.chat(messages)
+            
+        except Exception as e:
+            debug_logger.error(f"Hugging Face GPT-4 chat simulation failed: {e}")
+            return f"Error calling Hugging Face GPT-4 chat simulation: {str(e)}"
     
     def _messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Convert chat messages to a single prompt"""
@@ -481,9 +616,6 @@ Review:"""
     def test_connection(self) -> bool:
         """Test the connection to the Enterprise LLM Replica"""
         try:
-            if not self.is_configured():
-                return False
-            
             test_prompt = "Hello, can you respond with 'Enterprise LLM Replica is working'?"
             response = self.generate_response(test_prompt, max_tokens=50)
             

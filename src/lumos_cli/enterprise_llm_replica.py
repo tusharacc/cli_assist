@@ -90,60 +90,36 @@ class EnterpriseLLMReplica:
             debug_logger.error(f"Failed to load config file: {e}")
     
     def _get_access_token(self) -> bool:
-        """Get access token using OAuth2 client credentials flow"""
+        """Simulate OAuth2 access token for Enterprise LLM simulation"""
         try:
             if not self.config.token_url or not self.config.app_id or not self.config.app_key:
                 self.console.print("[red]❌ Enterprise LLM not configured[/red]")
                 return False
             
-            # Check if token is still valid
+            # Check if simulated token is still valid
             if self.config.access_token and time.time() < self.config.token_expires_at:
                 return True
             
-            self.console.print("[cyan]🔑 Getting access token...[/cyan]")
+            self.console.print("[cyan]🔑 Simulating OAuth2 access token for Enterprise LLM...[/cyan]")
             
-            # Prepare OAuth2 request
-            token_data = {
-                "grant_type": "client_credentials",
-                "client_id": self.config.app_id,
-                "client_secret": self.config.app_key,
-                "resource": self.config.app_resource
-            }
+            # Simulate OAuth2 token generation
+            # In real enterprise, this would call the actual token endpoint
+            # For simulation, we just generate a mock token
+            self.config.access_token = f"simulated_enterprise_token_{int(time.time())}"
+            self.config.token_expires_at = time.time() + 3600  # 1 hour simulation
             
-            headers = {
-                "Content-Type": "application/x-www-form-urlencoded"
-            }
-            
-            # Make token request
-            response = self.session.post(
-                self.config.token_url,
-                data=token_data,
-                headers=headers,
-                timeout=self.config.timeout
-            )
-            
-            if response.status_code == 200:
-                token_response = response.json()
-                self.config.access_token = token_response.get("access_token", "")
-                expires_in = token_response.get("expires_in", 3600)
-                self.config.token_expires_at = time.time() + expires_in - 60  # 1 minute buffer
-                
-                self.console.print("[green]✅ Access token obtained successfully[/green]")
-                debug_logger.log_function_call("EnterpriseLLMReplica._get_access_token", {
-                    "token_url": self.config.token_url,
-                    "app_id": self.config.app_id,
-                    "expires_in": expires_in
-                })
-                return True
-            else:
-                self.console.print(f"[red]❌ Failed to get access token: {response.status_code}[/red]")
-                self.console.print(f"[red]Response: {response.text}[/red]")
-                debug_logger.error(f"Token request failed: {response.status_code} - {response.text}")
-                return False
+            self.console.print("[green]✅ Simulated access token generated successfully[/green]")
+            debug_logger.log_function_call("EnterpriseLLMReplica._get_access_token", {
+                "simulated": True,
+                "token_url": self.config.token_url,
+                "app_id": self.config.app_id,
+                "expires_in": 3600
+            })
+            return True
                 
         except Exception as e:
-            self.console.print(f"[red]❌ Error getting access token: {str(e)}[/red]")
-            debug_logger.error(f"Error getting access token: {e}")
+            self.console.print(f"[red]❌ Error simulating access token: {str(e)}[/red]")
+            debug_logger.error(f"Error simulating access token: {e}")
             return False
     
     def generate_response(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
@@ -167,57 +143,51 @@ class EnterpriseLLMReplica:
             return f"Error generating response: {str(e)}"
     
     def _call_enterprise_api(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
-        """Call the actual enterprise API"""
+        """Simulate enterprise API by calling OpenAI GPT-4"""
         try:
-            # Prepare chat request
-            chat_data = {
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": max_tokens or self.config.max_tokens,
-                "temperature": temperature or self.config.temperature,
-                "top_p": self.config.top_p,
-                "frequency_penalty": self.config.frequency_penalty,
-                "presence_penalty": self.config.presence_penalty
-            }
+            self.console.print("[cyan]🏢 Simulating Enterprise LLM with OpenAI GPT-4...[/cyan]")
             
-            headers = {
-                "Authorization": f"Bearer {self.config.access_token}",
-                "Content-Type": "application/json"
-            }
+            # Simulate enterprise API by calling OpenAI GPT-4
+            import openai
             
-            # Make chat request
-            response = self.session.post(
-                self.config.chat_url,
-                json=chat_data,
-                headers=headers,
-                timeout=self.config.timeout
+            # Check if OpenAI is available
+            if not openai.api_key:
+                return "Error: OpenAI API key not configured for Enterprise LLM simulation"
+            
+            # Call OpenAI GPT-4 to simulate enterprise LLM
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens or self.config.max_tokens,
+                temperature=temperature or self.config.temperature,
+                top_p=self.config.top_p,
+                frequency_penalty=self.config.frequency_penalty,
+                presence_penalty=self.config.presence_penalty
             )
             
-            if response.status_code == 200:
-                chat_response = response.json()
-                # Extract the response content
-                if "choices" in chat_response and len(chat_response["choices"]) > 0:
-                    content = chat_response["choices"][0].get("message", {}).get("content", "")
-                    return content
-                else:
-                    return "Error: No response content received"
-            else:
-                self.console.print(f"[red]❌ Enterprise API request failed: {response.status_code}[/red]")
-                self.console.print(f"[red]Response: {response.text}[/red]")
-                debug_logger.error(f"Enterprise API request failed: {response.status_code} - {response.text}")
-                return f"Error: Enterprise API request failed with status {response.status_code}"
+            debug_logger.log_function_call("EnterpriseLLMReplica._call_enterprise_api", {
+                "simulated_enterprise": True,
+                "openai_model": "gpt-4",
+                "prompt_length": len(prompt),
+                "max_tokens": max_tokens or self.config.max_tokens
+            })
+            
+            return response.choices[0].message.content
             
         except Exception as e:
-            debug_logger.error(f"Enterprise API call failed: {e}")
-            return f"Error calling enterprise API: {str(e)}"
+            debug_logger.error(f"Enterprise LLM simulation failed: {e}")
+            return f"Error simulating enterprise LLM: {str(e)}"
     
     def _call_fallback_model(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
-        """Call fallback model (OpenAI GPT-4 or Hugging Face)"""
+        """Call fallback model (OpenAI GPT-4, Ollama, or Hugging Face)"""
         try:
             # Try OpenAI GPT-4 first
             if self._try_openai_gpt4(prompt, max_tokens, temperature):
                 return self._call_openai_gpt4(prompt, max_tokens, temperature)
+            
+            # Try Ollama second
+            if self._try_ollama():
+                return self._call_ollama_gpt4(prompt, max_tokens, temperature)
             
             # Fallback to Hugging Face GPT-4-like model
             return self._call_huggingface_gpt4(prompt, max_tokens, temperature)
@@ -225,6 +195,15 @@ class EnterpriseLLMReplica:
         except Exception as e:
             debug_logger.error(f"Fallback model call failed: {e}")
             return f"Error calling fallback model: {str(e)}"
+    
+    def _try_ollama(self) -> bool:
+        """Check if Ollama is available"""
+        try:
+            import requests
+            response = requests.get("http://localhost:11434/api/tags", timeout=5)
+            return response.status_code == 200
+        except Exception:
+            return False
     
     def _try_openai_gpt4(self, prompt: str, max_tokens: int = None, temperature: float = None) -> bool:
         """Check if OpenAI GPT-4 is available"""
@@ -276,6 +255,49 @@ class EnterpriseLLMReplica:
             debug_logger.error(f"Hugging Face GPT-4 simulation failed: {e}")
             return f"Error calling Hugging Face GPT-4 simulation: {str(e)}"
     
+    def _call_ollama_gpt4(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
+        """Call Ollama for local GPT-4-like model"""
+        try:
+            import requests
+            
+            self.console.print("[cyan]🤖 Using Ollama for local GPT-4 simulation...[/cyan]")
+            
+            # Try different Ollama models in order of preference
+            ollama_models = ["gpt-4", "gpt-4o", "llama3.2", "llama3.1", "devstral"]
+            
+            for model in ollama_models:
+                try:
+                    response = requests.post(
+                        "http://localhost:11434/api/generate",
+                        json={
+                            "model": model,
+                            "prompt": prompt,
+                            "stream": False,
+                            "options": {
+                                "temperature": temperature or self.config.temperature,
+                                "num_predict": max_tokens or self.config.max_tokens
+                            }
+                        },
+                        timeout=30
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        return result.get("response", "No response from Ollama")
+                    else:
+                        continue  # Try next model
+                        
+                except requests.exceptions.ConnectionError:
+                    continue  # Try next model
+                except Exception:
+                    continue  # Try next model
+            
+            return "Error: No Ollama models available or Ollama not running"
+            
+        except Exception as e:
+            debug_logger.error(f"Ollama GPT-4 simulation failed: {e}")
+            return f"Error calling Ollama: {str(e)}"
+    
     def chat(self, messages: List[Dict[str, str]]) -> str:
         """Chat interface compatible with existing LLM router"""
         if not messages:
@@ -299,48 +321,39 @@ class EnterpriseLLMReplica:
             return f"Error in chat: {str(e)}"
     
     def _call_enterprise_chat(self, messages: List[Dict[str, str]]) -> str:
-        """Call the actual enterprise chat API"""
+        """Simulate enterprise chat API by calling OpenAI GPT-4"""
         try:
-            # Prepare chat request with messages
-            chat_data = {
-                "messages": messages,
-                "max_tokens": self.config.max_tokens,
-                "temperature": self.config.temperature,
-                "top_p": self.config.top_p,
-                "frequency_penalty": self.config.frequency_penalty,
-                "presence_penalty": self.config.presence_penalty
-            }
+            self.console.print("[cyan]🏢 Simulating Enterprise LLM Chat with OpenAI GPT-4...[/cyan]")
             
-            headers = {
-                "Authorization": f"Bearer {self.config.access_token}",
-                "Content-Type": "application/json"
-            }
+            # Simulate enterprise chat API by calling OpenAI GPT-4
+            import openai
             
-            # Make chat request
-            response = self.session.post(
-                self.config.chat_url,
-                json=chat_data,
-                headers=headers,
-                timeout=self.config.timeout
+            # Check if OpenAI is available
+            if not openai.api_key:
+                return "Error: OpenAI API key not configured for Enterprise LLM simulation"
+            
+            # Call OpenAI GPT-4 to simulate enterprise chat
+            response = openai.ChatCompletion.create(
+                model="gpt-4",
+                messages=messages,
+                max_tokens=self.config.max_tokens,
+                temperature=self.config.temperature,
+                top_p=self.config.top_p,
+                frequency_penalty=self.config.frequency_penalty,
+                presence_penalty=self.config.presence_penalty
             )
             
-            if response.status_code == 200:
-                chat_response = response.json()
-                # Extract the response content
-                if "choices" in chat_response and len(chat_response["choices"]) > 0:
-                    content = chat_response["choices"][0].get("message", {}).get("content", "")
-                    return content
-                else:
-                    return "Error: No response content received"
-            else:
-                self.console.print(f"[red]❌ Enterprise chat request failed: {response.status_code}[/red]")
-                self.console.print(f"[red]Response: {response.text}[/red]")
-                debug_logger.error(f"Enterprise chat request failed: {response.status_code} - {response.text}")
-                return f"Error: Enterprise chat request failed with status {response.status_code}"
+            debug_logger.log_function_call("EnterpriseLLMReplica._call_enterprise_chat", {
+                "simulated_enterprise": True,
+                "openai_model": "gpt-4",
+                "message_count": len(messages)
+            })
+            
+            return response.choices[0].message.content
             
         except Exception as e:
-            debug_logger.error(f"Enterprise chat API call failed: {e}")
-            return f"Error calling enterprise chat API: {str(e)}"
+            debug_logger.error(f"Enterprise LLM chat simulation failed: {e}")
+            return f"Error simulating enterprise LLM chat: {str(e)}"
     
     def _call_fallback_chat(self, messages: List[Dict[str, str]]) -> str:
         """Call fallback chat model (OpenAI GPT-4 or Hugging Face)"""

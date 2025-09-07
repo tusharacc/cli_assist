@@ -140,38 +140,51 @@ def test_enterprise_llm_replica():
     print("🧪 Testing Enterprise LLM Replica...")
     
     try:
-        from lumos_cli.huggingface_manager import get_huggingface_manager
+        from lumos_cli.gpt4_simulator import get_gpt4_simulator
+        from lumos_cli.enterprise_llm_replica import get_enterprise_llm_replica
         from lumos_cli.environment_manager import get_environment_manager
-        from lumos_cli.safe_code_executor import get_safe_code_executor
         
-        # Test Hugging Face manager
-        print("\\n1. Testing Hugging Face Manager...")
-        hf_manager = get_huggingface_manager()
-        hf_manager.list_models()
+        # Test GPT-4 Simulator
+        print("\\n1. Testing GPT-4 Simulator...")
+        gpt4_simulator = get_gpt4_simulator()
+        
+        if gpt4_simulator.test_connection():
+            print("✅ GPT-4 Simulator connection successful")
+        else:
+            print("❌ GPT-4 Simulator connection failed")
+            return False
+        
+        # Test Enterprise LLM Replica
+        print("\\n2. Testing Enterprise LLM Replica...")
+        enterprise_llm = get_enterprise_llm_replica()
+        
+        if enterprise_llm.test_connection():
+            print("✅ Enterprise LLM Replica connection successful")
+        else:
+            print("❌ Enterprise LLM Replica connection failed")
+            return False
         
         # Test Environment Manager
-        print("\\n2. Testing Environment Manager...")
+        print("\\n3. Testing Environment Manager...")
         env_manager = get_environment_manager()
         env_manager.list_environments()
         
-        # Test Safe Code Executor
-        print("\\n3. Testing Safe Code Executor...")
-        executor = get_safe_code_executor()
-        
-        # Test code generation (without execution for safety)
-        print("\\n4. Testing code generation...")
-        result = executor.generate_and_execute(
-            "create a simple hello world function",
-            language="python",
-            model_type="general_code",
-            execute=False
+        # Test GPT-4 Simulator response
+        print("\\n4. Testing GPT-4 Simulator response...")
+        response = gpt4_simulator.generate_response(
+            "Hello, can you introduce yourself?",
+            task_type="general",
+            max_tokens=100
         )
+        print(f"GPT-4 Simulator response: {response[:200]}...")
         
-        if result.success:
-            print("✅ Code generation successful")
-            print(f"Generated code:\\n{result.output}")
-        else:
-            print(f"❌ Code generation failed: {result.error}")
+        # Test Enterprise LLM response
+        print("\\n5. Testing Enterprise LLM response...")
+        enterprise_response = enterprise_llm.generate_response(
+            "Explain the benefits of microservices architecture",
+            max_tokens=100
+        )
+        print(f"Enterprise LLM response: {enterprise_response[:200]}...")
         
         print("\\n✅ Enterprise LLM Replica test completed!")
         

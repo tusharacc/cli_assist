@@ -59,7 +59,7 @@ class AppDynamicsClient:
             }
             
             debug_logger.info(f"Requesting OAuth2 token from: {token_url}")
-            response = requests.post(token_url, data=data, headers=headers)
+            response = self.session.post(token_url, data=data, headers=headers)
             response.raise_for_status()
             
             token_data = response.json()

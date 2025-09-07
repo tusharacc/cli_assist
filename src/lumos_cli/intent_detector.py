@@ -25,7 +25,7 @@ class IntentDetector:
                 r'(pr|pull request|pullrequest)\s+(.+)',
                 r'(repository|repo)\s+(.+)',
                 r'(branch|commit|push|merge)\s+(.+)',
-                r'(tusharacc|scimarketplace|microsoft|github\.com)\s+(.+)',
+                r'(tusharacc|microsoft|github\.com)\s+(.+)',
                 r'(.+)/(.+)\s+(pr|pull request|clone|branch)',
                 r'(check|show|list|get)\s+(pr|pull request|repository|repo)\s+(.+)',
                 r'(is there|are there|any)\s+(pr|pull request)\s+(.+)',
@@ -35,7 +35,8 @@ class IntentDetector:
                 r'(latest|last|recent)\s+commits?\s+(.+)',
                 r'(.+)/(.+)\s+(commits?|commit)',
                 r'(commits?)\s+(.+)',
-                r'(from|in)\s+(.+/.*)\s+(commits?|commit)'
+                r'(from|in)\s+(.+/.*)\s+(commits?|commit)',
+                r'(scimarketplace)\s+(pr|pull request|repository|repo|commits?)\s+(.+)'
             ],
             'jira': [
                 r'\b([A-Z]+-\d+)\b',
@@ -46,12 +47,16 @@ class IntentDetector:
                 r'(jenkins|build|ci|cd|pipeline)\s+(.+)',
                 r'(failed|running|builds?|jobs?)\s+(.+)',
                 r'(last|recent|latest)\s+(\d+)?\s*(builds?|jobs?)\s+(.+)',
+                r'(get|show|fetch|can you get)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(builds?|jobs?)\s+(.+)',
+                r'(builds?|jobs?)\s+(from|for)\s+(jenkins|scimarketplace)\s+(.+)',
+                r'(jenkins|scimarketplace)\s+(folder|builds?|jobs?)\s+(.+)',
                 r'(deploy-all|scimarketplace)\s+(.+)',
                 r'(build|job)\s+(status|parameters?|console)\s+(.+)',
-                r'(get|show|fetch)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(builds?|jobs?)\s+(.+)',
                 r'(folder|folder)\s+(.+)',
                 r'(rc1|rc2|rc3|rc4)\s+(.+)',
-                r'(.+)_multi\s+(.+)'
+                r'(.+)_multi\s+(.+)',
+                r'(addresssearch|externaldata|quote|billing)\s+(.+)',
+                r'(scimarketplace)\s+(folder|builds?|jobs?)\s+(addresssearch|externaldata|quote|billing)\s+(.+)'
             ],
             'neo4j': [
                 r'(graph|neo4j|database|impact|dependencies?)\s+(.+)',
@@ -68,6 +73,28 @@ class IntentDetector:
                 r'(graph|neo4j)\s+(query|search|analysis)\s+(.+)',
                 r'(relationship|connections?)\s+(between|of)\s+(.+)',
                 r'(upstream|downstream)\s+(dependencies?|impact)\s+(.+)'
+            ],
+            'appdynamics': [
+                r'(appdynamics|app dynamics|appd)\s+(.+)',
+                r'(resource|resources)\s+(utilization|usage|monitoring)\s+(.+)',
+                r'(show|get|display)\s+(me\s+)?(resource|resources)\s+(utilization|usage)\s+(.+)',
+                r'(server|servers)\s+(resource|resources|utilization|usage)\s+(.+)',
+                r'(business\s+)?(transaction|transactions)\s+(.+)',
+                r'(alert|alerts|alarming)\s+(.+)',
+                r'(health|status|monitoring)\s+(.+)',
+                r'(cpu|memory|disk|network)\s+(usage|utilization|monitoring)\s+(.+)',
+                r'(performance|metrics|monitoring)\s+(.+)',
+                r'(sci\s+market\s+place|sci\s+markpet\s+place)\s+(.+)',
+                r'(production|prod|staging|uat)\s+(.+)',
+                r'(critical|warning|error)\s+(alert|alerts)\s+(.+)',
+                r'(slow|fast|response\s+time)\s+(transaction|transactions)\s+(.+)',
+                r'(web-server|app-server|database-server)\s+(.+)',
+                r'(payment|user|order|inventory)\s+(service|services)\s+(.+)',
+                r'(show|get|display)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(alert|alerts)\s+(.+)',
+                r'(show|get|display)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(transaction|transactions)\s+(.+)',
+                r'(show|get|display)\s+(me\s+)?(the\s+)?(last|recent|latest)\s+(\d+)?\s*(server|servers)\s+(.+)',
+                r'(monitor|monitoring|watch)\s+(.+)',
+                r'(dashboard|overview|summary)\s+(.+)'
             ],
             'edit': [
                 r'^(edit|modify|update|change|fix)\s+(.+)',
@@ -119,7 +146,23 @@ class IntentDetector:
         """Detect intent using regex patterns"""
         lower_input = user_input.lower()
         
+        # Check Jenkins first (highest priority for build-related queries)
+        if 'jenkins' in lower_input or 'builds' in lower_input or 'jobs' in lower_input:
+            for pattern in self.regex_patterns.get('jenkins', []):
+                match = re.search(pattern, lower_input)
+                if match:
+                    return {
+                        'type': 'jenkins',
+                        'query': user_input,
+                        'confidence': 0.9,
+                        'method': 'regex',
+                        'match': match.groups()
+                    }
+        
+        # Check other intents
         for intent_type, patterns in self.regex_patterns.items():
+            if intent_type == 'jenkins':  # Skip Jenkins as it's already checked
+                continue
             for pattern in patterns:
                 match = re.search(pattern, lower_input)
                 if match:
@@ -146,20 +189,27 @@ Available intents:
 2. **jira** - Jira ticket operations (view tickets, sprints, issues)
 3. **jenkins** - Jenkins CI/CD operations (build status, failed jobs, running jobs, build parameters)
 4. **neo4j** - Graph database queries (impact analysis, dependencies, relationships)
-5. **edit** - Code editing operations (modify files, add features)
-6. **review** - Code review operations (analyze code, check quality)
-7. **plan** - Planning operations (design, architecture, project planning)
-8. **chat** - General conversation or unclear intent
+5. **appdynamics** - AppDynamics monitoring (resource utilization, alerts, business transactions, health)
+6. **edit** - Code editing operations (modify files, add features)
+7. **review** - Code review operations (analyze code, check quality)
+8. **plan** - Planning operations (design, architecture, project planning)
+9. **chat** - General conversation or unclear intent
 
 Consider these scenarios:
 - "Get 5 commits from repo X" → github
 - "Show me ticket ABC-123" → jira  
 - "Get me the last 5 build status from jenkins in folder deploy-all" → jenkins
+- "Can you get me the last 5 builds from jenkins for scimarketplace and folder addresssearch and branch RC1" → jenkins
+- "Show me builds from jenkins for scimarketplace" → jenkins
 - "What repositories are affected by changes to class Y?" → neo4j
 - "Can you identify the dependencies of class CreateCyberRiskReportResponse from neo4j" → neo4j
 - "Find impact analysis for method ValidateUser" → neo4j
 - "Which classes depend on UserService" → neo4j
 - "Show dependencies for PaymentController" → neo4j
+- "Show me resource utilization for SCI Market Place PROD Azure" → appdynamics
+- "What are the critical alerts in the last hour?" → appdynamics
+- "Show me slow transactions for PaymentService" → appdynamics
+- "Get me server resources for web-server-01" → appdynamics
 - "Edit the login function to add validation" → edit
 - "Review the authentication module" → review
 - "Plan the microservices architecture" → plan

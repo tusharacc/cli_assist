@@ -49,14 +49,20 @@ def interactive_jenkins(query: str):
                 console.print(f"[yellow]ℹ️  No jobs found in folder '{folder}'[/yellow]")
                 return
             
+            debug_logger.info(f"Found {len(jobs)} jobs in folder '{folder}'")
+            
             # Get recent builds for each job
             all_recent_builds = []
             for job in jobs:
                 job_name = job.get("name", "")
                 job_path = f"{folder}/{job_name}" if folder else job_name
                 
+                debug_logger.info(f"Processing job: {job_name} (path: {job_path})")
+                
                 # Get recent builds (last 24 hours to ensure we have enough data)
                 recent_builds = jenkins.get_recent_builds(job_path, 24)
+                debug_logger.info(f"Found {len(recent_builds)} recent builds for job {job_name}")
+                
                 for build in recent_builds:
                     build["job_name"] = job_name
                     build["job_path"] = job_path

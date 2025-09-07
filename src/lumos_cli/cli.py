@@ -18,6 +18,8 @@ from .ui import create_header, create_welcome_panel, create_command_help_panel, 
 from .shell_executor import execute_shell_command
 from .github_client import GitHubClient
 from .github_query_parser import GitHubQueryParser
+from .neo4j_client import Neo4jClient
+from .neo4j_config import Neo4jConfigManager
 import re
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
@@ -1751,6 +1753,225 @@ def jira(
     else:
         console.print("[red]Invalid action. Use: config, search, browse, comment, or comments[/red]")
         console.print("Run 'lumos-cli jira --help' for examples")
+
+@app.command()
+def neo4j(
+    action: str = typer.Argument(help="Action: config, test, impact, deps, overview, populate"),
+    org: str = typer.Option("", "--org", "-o", help="Organization name"),
+    repo: str = typer.Option("", "--repo", "-r", help="Repository name"),
+    class_name: str = typer.Option("", "--class", "-c", help="Class name for analysis")
+):
+    """🔗 Neo4j graph database integration for code analysis
+    
+    Examples:
+      lumos-cli neo4j config                           → Setup Neo4j connection
+      lumos-cli neo4j test                             → Test Neo4j connection
+      lumos-cli neo4j populate                         → Populate with fake data
+      lumos-cli neo4j impact -o scimarketplace -r quoteapp -c QuoteService → Impact analysis
+      lumos-cli neo4j deps -o scimarketplace -r quoteapp -c QuoteController → Dependencies
+      lumos-cli neo4j overview -o scimarketplace -r quoteapp → Repository overview
+    """
+    
+    if action == "config":
+        # Configure Neo4j settings
+        config_manager = Neo4jConfigManager()
+        console.print("🔧 Neo4j Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.uri}")
+            if not typer.confirm("Reconfigure Neo4j settings?"):
+                return
+        
+        success = config_manager.setup_interactive()
+        if success:
+            console.print("✅ Neo4j configured successfully!")
+        else:
+            console.print("❌ Neo4j configuration failed!")
+    
+    elif action == "test":
+        # Test Neo4j connection
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j config' first.[/yellow]")
+            return
+        
+        console.print("🔍 Testing Neo4j connection...")
+        client = Neo4jClient(config.uri, config.username, config.password)
+        
+        if client.test_connection():
+            console.print("✅ Neo4j connection successful!")
+            
+            # Get database info
+            try:
+                with client.driver.session() as session:
+                    result = session.run("CALL dbms.components() YIELD name, versions, edition")
+                    for record in result:
+                        console.print(f"📊 Database: {record['name']} {record['versions'][0]} ({record['edition']})")
+                        break
+            except Exception as e:
+                console.print(f"⚠️ Could not get database info: {e}")
+        else:
+            console.print("❌ Neo4j connection failed!")
+        
+        client.close()
+    
+    elif action == "populate":
+        # Populate with fake data
+        console.print("🗄️ Populating Neo4j with fake data...")
+        import subprocess
+        import sys
+        
+        try:
+            result = subprocess.run([sys.executable, "populate_neo4j_fake_data.py"], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                console.print("✅ Neo4j populated successfully!")
+                console.print(result.stdout)
+            else:
+                console.print("❌ Failed to populate Neo4j:")
+                console.print(result.stderr)
+        except Exception as e:
+            console.print(f"❌ Error running population script: {e}")
+    
+    elif action == "impact":
+        # Impact analysis
+        if not org or not repo or not class_name:
+            console.print("[red]❌ Organization, repository, and class name required for impact analysis[/red]")
+            console.print("Example: lumos-cli neo4j impact -o scimarketplace -r quoteapp -c QuoteService")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j config' first.[/yellow]")
+            return
+        
+        client = Neo4jClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"🔍 Analyzing impact of {class_name} in {org}/{repo}...")
+        
+        impacts = client.find_impact_analysis(org, repo, class_name)
+        
+        if impacts:
+            console.print(f"✅ Found {len(impacts)} classes that depend on {class_name}:")
+            console.print()
+            
+            from rich.table import Table
+            table = Table(title=f"Impact Analysis: {class_name}")
+            table.add_column("Class", style="cyan")
+            table.add_column("Type", style="yellow")
+            table.add_column("File", style="green")
+            
+            for impact in impacts:
+                table.add_row(
+                    impact['class_name'],
+                    impact['class_type'],
+                    impact['file_path']
+                )
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ No classes depend on {class_name}")
+        
+        client.close()
+    
+    elif action == "deps":
+        # Dependencies analysis
+        if not org or not repo or not class_name:
+            console.print("[red]❌ Organization, repository, and class name required for dependency analysis[/red]")
+            console.print("Example: lumos-cli neo4j deps -o scimarketplace -r quoteapp -c QuoteController")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j config' first.[/yellow]")
+            return
+        
+        client = Neo4jClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"🔍 Analyzing dependencies of {class_name} in {org}/{repo}...")
+        
+        deps = client.find_dependencies(org, repo, class_name)
+        
+        if deps:
+            console.print(f"✅ Found {len(deps)} dependencies for {class_name}:")
+            console.print()
+            
+            from rich.table import Table
+            table = Table(title=f"Dependencies: {class_name}")
+            table.add_column("Class", style="cyan")
+            table.add_column("Type", style="yellow")
+            table.add_column("File", style="green")
+            table.add_column("Dependency Type", style="magenta")
+            
+            for dep in deps:
+                table.add_row(
+                    dep['class_name'],
+                    dep['class_type'],
+                    dep['file_path'],
+                    dep['dependency_type']
+                )
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ {class_name} has no dependencies")
+        
+        client.close()
+    
+    elif action == "overview":
+        # Repository overview
+        if not org or not repo:
+            console.print("[red]❌ Organization and repository required for overview[/red]")
+            console.print("Example: lumos-cli neo4j overview -o scimarketplace -r quoteapp")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j config' first.[/yellow]")
+            return
+        
+        client = Neo4jClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"📊 Getting overview for {org}/{repo}...")
+        
+        overview = client.get_repository_overview(org, repo)
+        
+        if overview:
+            from rich.table import Table
+            table = Table(title=f"Repository Overview: {org}/{repo}")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Count", style="yellow")
+            
+            table.add_row("Files", str(overview.get('file_count', 0)))
+            table.add_row("Classes", str(overview.get('class_count', 0)))
+            table.add_row("Methods", str(overview.get('method_count', 0)))
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ No data found for {org}/{repo}")
+        
+        client.close()
+    
+    else:
+        console.print("[red]Invalid action. Use: config, test, impact, deps, overview, or populate[/red]")
+        console.print("Run 'lumos-cli neo4j --help' for examples")
 
 @app.command()
 def interactive_mode():

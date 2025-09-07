@@ -26,7 +26,7 @@ def interactive_jenkins(query: str):
         lower_query = query.lower()
         
         # Check for build status queries (last N builds)
-        if any(keyword in lower_query for keyword in ["build status", "last", "recent", "latest"]) and any(keyword in lower_query for keyword in ["builds", "jobs"]):
+        if any(keyword in lower_query for keyword in ["build status", "last", "recent", "latest", "builds", "jobs"]):
             debug_logger.info("Processing build status query")
             
             # Extract number of builds

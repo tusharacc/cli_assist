@@ -2578,6 +2578,14 @@ def interactive_mode():
                     else:
                         console.print("[yellow]Usage: /appdynamics <query>[/yellow]")
                     continue
+                elif user_input.startswith('/code'):
+                    query = user_input[5:].strip()
+                    if query:
+                        _interactive_code(query)
+                    else:
+                        console.print("[yellow]Usage: /code <action> [options][/yellow]")
+                        _show_code_help()
+                    continue
                 else:
                     console.print(f"[red]Unknown command: {user_input}[/red]")
                     continue
@@ -2599,6 +2607,8 @@ def interactive_mode():
                 _interactive_neo4j(detected_command['query'])
             elif detected_command['type'] == 'appdynamics':
                 _interactive_appdynamics(detected_command['query'])
+            elif detected_command['type'] == 'code':
+                _interactive_code(detected_command['query'])
             elif detected_command['type'] == 'workflow':
                 _interactive_workflow(detected_command['query'], detected_command)
             elif detected_command['type'] == 'edit':
@@ -2844,7 +2854,8 @@ def _suggest_explicit_intent(user_input: str, detected_command: dict):
         'jenkins': '/jenkins', 
         'jira': '/jira',
         'neo4j': '/neo4j',
-        'appdynamics': '/appdynamics'
+        'appdynamics': '/appdynamics',
+        'code': '/code'
     }
     
     if intent_type in intent_prefixes:
@@ -2852,6 +2863,205 @@ def _suggest_explicit_intent(user_input: str, detected_command: dict):
         console.print(f"\n[dim]💡 Tip: For faster routing, you can use:[/dim]")
         console.print(f"[bright_cyan]{prefix} {user_input}[/bright_cyan]")
         console.print(f"[dim]Confidence: {confidence:.1%} | Method: {detected_command.get('method', 'unknown')}[/dim]\n")
+
+def _interactive_code(query: str):
+    """Handle code operations in interactive mode"""
+    try:
+        from .code_manager import CodeManager
+        
+        # Parse the query to extract action and parameters
+        parts = query.split()
+        if not parts:
+            _show_code_help()
+            return
+        
+        action = parts[0].lower()
+        args = parts[1:] if len(parts) > 1 else []
+        
+        # Initialize code manager
+        code_manager = CodeManager()
+        
+        if action == "generate":
+            if not args:
+                console.print("[yellow]Usage: /code generate <specification> [file_path] [language][/yellow]")
+                return
+            
+            specification = " ".join(args[:-2]) if len(args) > 2 else " ".join(args)
+            file_path = args[-2] if len(args) > 2 and not args[-2].startswith('.') else None
+            language = args[-1] if len(args) > 2 and args[-1] in ['python', 'javascript', 'typescript', 'go', 'java'] else 'python'
+            
+            result = code_manager.generate_code(specification, file_path, language)
+            if result['success']:
+                console.print(f"[green]✅ Generated code: {result['file_path']}[/green]")
+            else:
+                console.print(f"[red]❌ Code generation failed[/red]")
+        
+        elif action == "edit":
+            if not args:
+                console.print("[yellow]Usage: /code edit <instruction> [file_path][/yellow]")
+                return
+            
+            instruction = " ".join(args[:-1]) if len(args) > 1 and not args[-1].startswith('.') else " ".join(args)
+            file_path = args[-1] if len(args) > 1 and args[-1].startswith('.') else None
+            
+            result = code_manager.edit_code(instruction, file_path)
+            if result['success']:
+                console.print(f"[green]✅ Code edited successfully[/green]")
+                if 'changes' in result:
+                    console.print(f"[dim]Changes: {result['changes']}[/dim]")
+            else:
+                console.print(f"[red]❌ Code editing failed: {result.get('error', 'Unknown error')}[/red]")
+        
+        elif action == "test":
+            if not args:
+                console.print("[yellow]Usage: /code test [generate|run] [file_path][/yellow]")
+                return
+            
+            sub_action = args[0].lower()
+            file_path = args[1] if len(args) > 1 else None
+            
+            if sub_action == "generate":
+                if not file_path:
+                    console.print("[yellow]Usage: /code test generate <file_path> [test_type][/yellow]")
+                    return
+                
+                test_type = args[2] if len(args) > 2 else "unit"
+                result = code_manager.generate_tests(file_path, test_type)
+                if result['success']:
+                    console.print(f"[green]✅ Generated tests: {result['test_file_path']}[/green]")
+                else:
+                    console.print(f"[red]❌ Test generation failed[/red]")
+            
+            elif sub_action == "run":
+                result = code_manager.run_tests(file_path)
+                console.print(f"[green]✅ Tests completed: {result.passed} passed, {result.failed} failed, {result.skipped} skipped[/green]")
+                if result.errors:
+                    console.print(f"[yellow]Errors: {', '.join(result.errors)}[/yellow]")
+        
+        elif action == "analyze":
+            if not args:
+                console.print("[yellow]Usage: /code analyze <file_path>[/yellow]")
+                return
+            
+            file_path = args[0]
+            analysis = code_manager.analyze_code(file_path)
+            
+            # Display analysis results
+            table = Table(title=f"Code Analysis: {file_path}")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+            
+            table.add_row("Lines of Code", str(analysis.lines_of_code))
+            table.add_row("Functions", str(analysis.functions))
+            table.add_row("Classes", str(analysis.classes))
+            table.add_row("Imports", str(analysis.imports))
+            table.add_row("Complexity", str(analysis.complexity))
+            
+            console.print(table)
+            
+            if analysis.issues:
+                console.print("\n[yellow]⚠️ Issues Found:[/yellow]")
+                for issue in analysis.issues:
+                    console.print(f"  • {issue}")
+            
+            if analysis.suggestions:
+                console.print("\n[blue]💡 Suggestions:[/blue]")
+                for suggestion in analysis.suggestions:
+                    console.print(f"  • {suggestion}")
+        
+        elif action == "refactor":
+            if not args:
+                console.print("[yellow]Usage: /code refactor <file_path> [refactor_type][/yellow]")
+                return
+            
+            file_path = args[0]
+            refactor_type = args[1] if len(args) > 1 else "general"
+            
+            result = code_manager.refactor_code(file_path, refactor_type)
+            if result['success']:
+                console.print(f"[green]✅ Code refactored successfully[/green]")
+                if 'changes' in result:
+                    console.print(f"[dim]Changes: {result['changes']}[/dim]")
+            else:
+                console.print(f"[red]❌ Refactoring failed: {result.get('error', 'Unknown error')}[/red]")
+        
+        elif action == "docs":
+            if not args:
+                console.print("[yellow]Usage: /code docs <file_path> [doc_type][/yellow]")
+                return
+            
+            file_path = args[0]
+            doc_type = args[1] if len(args) > 1 else "api"
+            
+            result = code_manager.generate_docs(file_path, doc_type)
+            if result['success']:
+                console.print(f"[green]✅ Documentation generated: {result['doc_file_path']}[/green]")
+            else:
+                console.print(f"[red]❌ Documentation generation failed[/red]")
+        
+        elif action == "format":
+            if not args:
+                console.print("[yellow]Usage: /code format <file_path>[/yellow]")
+                return
+            
+            file_path = args[0]
+            result = code_manager.format_code(file_path)
+            if result['success']:
+                console.print(f"[green]✅ Code formatted successfully[/green]")
+            else:
+                console.print(f"[red]❌ Formatting failed: {result.get('error', 'Unknown error')}[/red]")
+        
+        elif action == "validate":
+            if not args:
+                console.print("[yellow]Usage: /code validate <file_path>[/yellow]")
+                return
+            
+            file_path = args[0]
+            result = code_manager.validate_code(file_path)
+            if result['success']:
+                console.print(f"[green]✅ Code validation passed[/green]")
+                if 'warnings' in result:
+                    console.print(f"[yellow]Warnings: {result['warnings']}[/yellow]")
+            else:
+                console.print(f"[red]❌ Validation failed: {result.get('error', 'Unknown error')}[/red]")
+        
+        else:
+            console.print(f"[red]Unknown code action: {action}[/red]")
+            _show_code_help()
+    
+    except Exception as e:
+        console.print(f"[red]❌ Code operation failed: {str(e)}[/red]")
+        debug_logger.error(f"Code operation failed: {e}")
+
+def _show_code_help():
+    """Show code command help"""
+    console.print("""
+[bold cyan]🔧 Code Management Commands[/bold cyan]
+
+[bold]Available Actions:[/bold]
+  generate <spec> [file] [lang]  - Generate new code from specification
+  edit <instruction> [file]      - Edit existing code
+  test [generate|run] [file]     - Generate or run tests
+  analyze <file>                 - Analyze code quality and complexity
+  refactor <file> [type]         - Refactor code for better quality
+  docs <file> [type]             - Generate documentation
+  format <file>                  - Format and lint code
+  validate <file>                - Validate code syntax and style
+
+[bold]Examples:[/bold]
+  /code generate "create a REST API endpoint" api.py python
+  /code edit "add error handling" app.py
+  /code test generate app.py unit
+  /code test run
+  /code analyze app.py
+  /code refactor app.py general
+  /code docs app.py api
+  /code format app.py
+  /code validate app.py
+
+[bold]Supported Languages:[/bold]
+  Python, JavaScript, TypeScript, Go, Java, C++, C#, PHP, Ruby, Rust
+""")
 
 def _show_interactive_help():
     """Show interactive mode help"""
@@ -2872,6 +3082,7 @@ def _show_interactive_help():
   /jira <query>         - Jira operations (tickets, issues, comments)
   /neo4j <query>        - Neo4j operations (dependencies, impact analysis)
   /appdynamics <query>  - AppDynamics operations (monitoring, alerts)
+  /code <action>        - Code operations (generate, edit, test, analyze, refactor)
 
 [bold]Natural Language:[/bold]
   "add error handling"              → Smart file discovery

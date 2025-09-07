@@ -96,6 +96,28 @@ class IntentDetector:
                 r'(monitor|monitoring|watch)\s+(.+)',
                 r'(dashboard|overview|summary)\s+(.+)'
             ],
+            'code': [
+                r'(code|coding|programming|development)\s+(.+)',
+                r'(generate|create|write|build)\s+(code|function|class|module|script)\s+(.+)',
+                r'(edit|modify|update|change)\s+(code|file|function|class)\s+(.+)',
+                r'(test|testing|unit test|integration test)\s+(.+)',
+                r'(refactor|refactoring|improve|optimize)\s+(code|function|class)\s+(.+)',
+                r'(analyze|analysis|review|inspect)\s+(code|file|function|class)\s+(.+)',
+                r'(documentation|docs|document)\s+(.+)',
+                r'(format|lint|style|clean)\s+(code|file)\s+(.+)',
+                r'(validate|check|verify)\s+(code|syntax|style)\s+(.+)',
+                r'(debug|fix|error|bug)\s+(code|function|class)\s+(.+)',
+                r'(implement|add|remove)\s+(feature|function|method|class)\s+(.+)',
+                r'(python|javascript|typescript|go|java|cpp)\s+(code|function|class|script)\s+(.+)',
+                r'(api|endpoint|service|microservice)\s+(.+)',
+                r'(database|db|sql|query)\s+(.+)',
+                r'(frontend|backend|fullstack|web|mobile)\s+(.+)',
+                r'(algorithm|data structure|pattern|design)\s+(.+)',
+                r'(security|performance|optimization|scalability)\s+(.+)',
+                r'(framework|library|package|dependency)\s+(.+)',
+                r'(deployment|devops|ci|cd|pipeline)\s+(.+)',
+                r'(architecture|design|pattern|principle)\s+(.+)'
+            ],
             'edit': [
                 r'^(edit|modify|update|change|fix)\s+(.+)',
                 r'^add\s+(.+)\s+to\s+(.+)',
@@ -190,10 +212,11 @@ Available intents:
 3. **jenkins** - Jenkins CI/CD operations (build status, failed jobs, running jobs, build parameters)
 4. **neo4j** - Graph database queries (impact analysis, dependencies, relationships)
 5. **appdynamics** - AppDynamics monitoring (resource utilization, alerts, business transactions, health)
-6. **edit** - Code editing operations (modify files, add features)
-7. **review** - Code review operations (analyze code, check quality)
-8. **plan** - Planning operations (design, architecture, project planning)
-9. **chat** - General conversation or unclear intent
+6. **code** - Code operations (generate, edit, test, analyze, refactor, docs, format, validate)
+7. **edit** - Code editing operations (modify files, add features)
+8. **review** - Code review operations (analyze code, check quality)
+9. **plan** - Planning operations (design, architecture, project planning)
+10. **chat** - General conversation or unclear intent
 
 Consider these scenarios:
 - "Get 5 commits from repo X" → github
@@ -210,6 +233,11 @@ Consider these scenarios:
 - "What are the critical alerts in the last hour?" → appdynamics
 - "Show me slow transactions for PaymentService" → appdynamics
 - "Get me server resources for web-server-01" → appdynamics
+- "Generate a REST API endpoint for user management" → code
+- "Create unit tests for the authentication module" → code
+- "Refactor the payment processing code for better performance" → code
+- "Analyze the code complexity of the main application" → code
+- "Generate documentation for the API endpoints" → code
 - "Edit the login function to add validation" → edit
 - "Review the authentication module" → review
 - "Plan the microservices architecture" → plan

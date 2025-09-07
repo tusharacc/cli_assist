@@ -13,6 +13,8 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from .debug_logger import get_debug_logger
+from .neo4j_dotnet_client import Neo4jDotNetClient
+from .neo4j_config import Neo4jConfigManager
 
 console = Console()
 debug_logger = get_debug_logger()
@@ -384,19 +386,33 @@ class GitHubClient:
 [bold]🔍 Code Analysis:[/bold]
 {file_analysis['code_analysis']}
 
+[bold]🔧 Method & Class Changes:[/bold]
+{file_analysis['method_class_changes']}
+
+{file_analysis['dependency_analysis']}
+
 [bold]📈 Impact Summary:[/bold]
 {file_analysis['impact_summary']}
 """
         return summary.strip()
     
     def _analyze_file_changes(self, files: List[Dict]) -> Dict[str, str]:
-        """Analyze file changes to extract meaningful information"""
+        """Analyze file changes to extract meaningful information including method and class changes"""
         if not files:
             return {
                 'file_summary': "No file changes detected",
                 'code_analysis': "No code changes to analyze",
-                'impact_summary': "No changes detected"
+                'impact_summary': "No changes detected",
+                'method_class_changes': "No method or class changes detected"
             }
+        
+        # Extract method and class changes from diffs
+        method_class_result = self._extract_method_class_changes(files)
+        method_class_changes_data = method_class_result['data']
+        method_class_changes_formatted = method_class_result['formatted']
+        
+        # Analyze dependencies with Neo4j
+        dependency_analysis = self.analyze_dependencies_with_neo4j(method_class_changes_data)
         
         # Categorize files
         file_categories = {
@@ -414,7 +430,7 @@ class GitHubClient:
             deletions = file_info.get('deletions', 0)
             
             # Categorize file
-            if any(ext in filename.lower() for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs']):
+            if any(ext in filename.lower() for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.cs']):
                 if 'test' in filename.lower() or 'spec' in filename.lower():
                     file_categories['test_files'].append((filename, status, additions, deletions))
                 else:
@@ -446,8 +462,336 @@ class GitHubClient:
         return {
             'file_summary': file_summary.strip(),
             'code_analysis': code_analysis,
-            'impact_summary': impact_summary
+            'impact_summary': impact_summary,
+            'method_class_changes': method_class_changes_formatted,
+            'dependency_analysis': dependency_analysis
         }
+    
+    def _extract_method_class_changes(self, files: List[Dict]) -> Dict:
+        """Extract method and class changes from file diffs"""
+        method_class_changes = {
+            'classes_added': [],
+            'classes_modified': [],
+            'classes_removed': [],
+            'methods_added': [],
+            'methods_modified': [],
+            'methods_removed': []
+        }
+        
+        for file_info in files:
+            filename = file_info.get('filename', '')
+            status = file_info.get('status', '')
+            patch = file_info.get('patch', '')
+            
+            # Only analyze source code files
+            if not any(ext in filename.lower() for ext in ['.py', '.js', '.ts', '.java', '.cpp', '.c', '.go', '.rs', '.cs']):
+                continue
+                
+            if not patch:
+                continue
+            
+            # Extract changes from patch
+            changes = self._parse_patch_for_methods_classes(patch, filename, status)
+            
+            # Merge changes
+            for change_type, items in changes.items():
+                method_class_changes[change_type].extend(items)
+        
+        # Build summary
+        summary_parts = []
+        
+        if method_class_changes['classes_added']:
+            summary_parts.append(f"\n[bold green]🆕 Classes Added:[/bold green]")
+            for class_info in method_class_changes['classes_added']:
+                summary_parts.append(f"  • {class_info['class_name']} in {class_info['file']}")
+        
+        if method_class_changes['classes_modified']:
+            summary_parts.append(f"\n[bold yellow]✏️ Classes Modified:[/bold yellow]")
+            for class_info in method_class_changes['classes_modified']:
+                summary_parts.append(f"  • {class_info['class_name']} in {class_info['file']}")
+                if class_info.get('methods_changed'):
+                    for method in class_info['methods_changed']:
+                        summary_parts.append(f"    - {method}")
+        
+        if method_class_changes['classes_removed']:
+            summary_parts.append(f"\n[bold red]🗑️ Classes Removed:[/bold red]")
+            for class_info in method_class_changes['classes_removed']:
+                summary_parts.append(f"  • {class_info['class_name']} in {class_info['file']}")
+        
+        if method_class_changes['methods_added']:
+            summary_parts.append(f"\n[bold green]🆕 Methods Added:[/bold green]")
+            for method_info in method_class_changes['methods_added']:
+                summary_parts.append(f"  • {method_info['method_name']} in {method_info['class_name']} ({method_info['file']})")
+        
+        if method_class_changes['methods_modified']:
+            summary_parts.append(f"\n[bold yellow]✏️ Methods Modified:[/bold yellow]")
+            for method_info in method_class_changes['methods_modified']:
+                summary_parts.append(f"  • {method_info['method_name']} in {method_info['class_name']} ({method_info['file']})")
+        
+        if method_class_changes['methods_removed']:
+            summary_parts.append(f"\n[bold red]🗑️ Methods Removed:[/bold red]")
+            for method_info in method_class_changes['methods_removed']:
+                summary_parts.append(f"  • {method_info['method_name']} in {method_info['class_name']} ({method_info['file']})")
+        
+        if not any(method_class_changes.values()):
+            return {
+                'data': method_class_changes,
+                'formatted': "No method or class changes detected"
+            }
+        
+        return {
+            'data': method_class_changes,
+            'formatted': "\n".join(summary_parts)
+        }
+    
+    def _parse_patch_for_methods_classes(self, patch: str, filename: str, status: str) -> Dict[str, List[Dict]]:
+        """Parse git patch to extract method and class changes"""
+        changes = {
+            'classes_added': [],
+            'classes_modified': [],
+            'classes_removed': [],
+            'methods_added': [],
+            'methods_modified': [],
+            'methods_removed': []
+        }
+        
+        lines = patch.split('\n')
+        current_class = None
+        current_method = None
+        in_class = False
+        in_method = False
+        
+        # Determine file type for parsing
+        file_ext = filename.split('.')[-1].lower()
+        
+        for line in lines:
+            if line.startswith('@@'):
+                # Reset context for new hunk
+                current_class = None
+                current_method = None
+                in_class = False
+                in_method = False
+                continue
+            
+            if line.startswith('+') or line.startswith('-'):
+                # This is a changed line
+                content = line[1:].strip()
+                
+                # Parse based on file type
+                if file_ext in ['py']:
+                    self._parse_python_changes(line, content, filename, current_class, current_method, changes)
+                elif file_ext in ['cs']:
+                    self._parse_csharp_changes(line, content, filename, current_class, current_method, changes)
+                elif file_ext in ['js', 'ts']:
+                    self._parse_javascript_changes(line, content, filename, current_class, current_method, changes)
+                elif file_ext in ['java']:
+                    self._parse_java_changes(line, content, filename, current_class, current_method, changes)
+        
+        return changes
+    
+    def _parse_python_changes(self, line: str, content: str, filename: str, current_class: str, current_method: str, changes: Dict):
+        """Parse Python code changes"""
+        is_addition = line.startswith('+')
+        
+        # Class detection
+        if content.startswith('class ') and ':' in content:
+            class_name = content.split('class ')[1].split('(')[0].split(':')[0].strip()
+            if is_addition:
+                changes['classes_added'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+            else:
+                changes['classes_removed'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+        
+        # Method detection
+        elif content.startswith('def ') and '(' in content and ':' in content:
+            method_name = content.split('def ')[1].split('(')[0].strip()
+            if is_addition:
+                changes['methods_added'].append({
+                    'method_name': method_name,
+                    'class_name': current_class or 'Global',
+                    'file': filename
+                })
+            else:
+                changes['methods_removed'].append({
+                    'method_name': method_name,
+                    'class_name': current_class or 'Global',
+                    'file': filename
+                })
+    
+    def _parse_csharp_changes(self, line: str, content: str, filename: str, current_class: str, current_method: str, changes: Dict):
+        """Parse C# code changes"""
+        is_addition = line.startswith('+')
+        
+        # Class detection
+        if 'class ' in content and ('{' in content or ':' in content):
+            class_name = content.split('class ')[1].split(' ')[0].split('{')[0].split(':')[0].strip()
+            if is_addition:
+                changes['classes_added'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+            else:
+                changes['classes_removed'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+        
+        # Method detection
+        elif any(keyword in content for keyword in ['public ', 'private ', 'protected ', 'internal ']) and '(' in content and '{' in content:
+            # Extract method name
+            parts = content.split('(')[0].strip().split()
+            if len(parts) >= 2:
+                method_name = parts[-1]
+                if is_addition:
+                    changes['methods_added'].append({
+                        'method_name': method_name,
+                        'class_name': current_class or 'Global',
+                        'file': filename
+                    })
+                else:
+                    changes['methods_removed'].append({
+                        'method_name': method_name,
+                        'class_name': current_class or 'Global',
+                        'file': filename
+                    })
+    
+    def _parse_javascript_changes(self, line: str, content: str, filename: str, current_class: str, current_method: str, changes: Dict):
+        """Parse JavaScript/TypeScript code changes"""
+        is_addition = line.startswith('+')
+        
+        # Class detection
+        if 'class ' in content and ('{' in content or 'extends' in content):
+            class_name = content.split('class ')[1].split(' ')[0].split('{')[0].split('extends')[0].strip()
+            if is_addition:
+                changes['classes_added'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+            else:
+                changes['classes_removed'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+        
+        # Method detection
+        elif ('function ' in content or '=>' in content) and '(' in content:
+            if 'function ' in content:
+                method_name = content.split('function ')[1].split('(')[0].strip()
+            else:
+                # Arrow function
+                method_name = content.split('(')[0].strip().split('=')[0].strip()
+            
+            if is_addition:
+                changes['methods_added'].append({
+                    'method_name': method_name,
+                    'class_name': current_class or 'Global',
+                    'file': filename
+                })
+            else:
+                changes['methods_removed'].append({
+                    'method_name': method_name,
+                    'class_name': current_class or 'Global',
+                    'file': filename
+                })
+    
+    def _parse_java_changes(self, line: str, content: str, filename: str, current_class: str, current_method: str, changes: Dict):
+        """Parse Java code changes"""
+        is_addition = line.startswith('+')
+        
+        # Class detection
+        if 'class ' in content and '{' in content:
+            class_name = content.split('class ')[1].split(' ')[0].split('{')[0].strip()
+            if is_addition:
+                changes['classes_added'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+            else:
+                changes['classes_removed'].append({
+                    'class_name': class_name,
+                    'file': filename
+                })
+        
+        # Method detection
+        elif any(keyword in content for keyword in ['public ', 'private ', 'protected ']) and '(' in content and '{' in content:
+            # Extract method name
+            parts = content.split('(')[0].strip().split()
+            if len(parts) >= 2:
+                method_name = parts[-1]
+                if is_addition:
+                    changes['methods_added'].append({
+                        'method_name': method_name,
+                        'class_name': current_class or 'Global',
+                        'file': filename
+                    })
+                else:
+                    changes['methods_removed'].append({
+                        'method_name': method_name,
+                        'class_name': current_class or 'Global',
+                    'file': filename
+                })
+    
+    def analyze_dependencies_with_neo4j(self, method_class_changes: Dict) -> str:
+        """Analyze dependencies using Neo4j for changed methods and classes"""
+        try:
+            # Check if Neo4j is configured
+            config_manager = Neo4jConfigManager()
+            if not config_manager.is_configured():
+                return "[dim]Neo4j not configured - dependency analysis unavailable[/dim]"
+            
+            config = config_manager.load_config()
+            if not config:
+                return "[dim]Neo4j configuration not found[/dim]"
+            
+            client = Neo4jDotNetClient(config.uri, config.username, config.password)
+            if not client.connect():
+                return "[dim]Failed to connect to Neo4j[/dim]"
+            
+            dependency_analysis = []
+            
+            # Analyze changed methods for dependencies
+            for method_info in method_class_changes.get('methods_added', []) + method_class_changes.get('methods_modified', []):
+                method_name = method_info['method_name']
+                class_name = method_info['class_name']
+                file_path = method_info['file']
+                
+                # Find classes that call this method
+                calling_classes = client.find_classes_using_constant(method_name, "Global")
+                if calling_classes:
+                    dependency_analysis.append(f"  • {method_name} is called by {len(calling_classes)} classes")
+            
+            # Analyze changed classes for dependencies
+            for class_info in method_class_changes.get('classes_added', []) + method_class_changes.get('classes_modified', []):
+                class_name = class_info['class_name']
+                file_path = class_info['file']
+                
+                # Get repository overview to understand class context
+                # Extract org/repo from file path if possible
+                if '/' in file_path:
+                    parts = file_path.split('/')
+                    if len(parts) >= 2:
+                        repo_name = parts[-2] if parts[-2] != 'src' else parts[-3]
+                        namespace = f"Company.{repo_name}"
+                        
+                        overview = client.get_repository_overview(repo_name, namespace)
+                        if overview:
+                            dependency_analysis.append(f"  • {class_name} is part of {repo_name} ({overview.get('method_count', 0)} methods)")
+            
+            client.close()
+            
+            if dependency_analysis:
+                return "\n[bold cyan]🔗 Dependency Analysis:[/bold cyan]\n" + "\n".join(dependency_analysis)
+            else:
+                return "[dim]No dependency information available in Neo4j[/dim]"
+                
+        except Exception as e:
+            debug_logger.error(f"Neo4j dependency analysis failed: {e}")
+            return f"[dim]Dependency analysis failed: {e}[/dim]"
     
     def _analyze_code_patterns(self, files: List[Dict]) -> str:
         """Analyze code patterns in changed files"""

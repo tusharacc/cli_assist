@@ -2511,6 +2511,7 @@ def interactive_mode():
             if user_input.startswith('/'):
                 if user_input.startswith('/help'):
                     _show_interactive_help()
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/edit'):
                     instruction = user_input[5:].strip()
@@ -2518,6 +2519,7 @@ def interactive_mode():
                         _interactive_edit(instruction)
                     else:
                         console.print("[yellow]Usage: /edit <instruction> [file]  or  /edit <file> <instruction>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/plan'):
                     goal = user_input[5:].strip()
@@ -2525,6 +2527,7 @@ def interactive_mode():
                         _interactive_plan(goal)
                     else:
                         console.print("[yellow]Usage: /plan <goal>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/review'):
                     file_path = user_input[7:].strip()
@@ -2532,9 +2535,11 @@ def interactive_mode():
                         _interactive_review(file_path)
                     else:
                         console.print("[yellow]Usage: /review <file>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/sessions'):
                     _show_sessions(history)
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/footer'):
                     query = user_input[7:].strip()
@@ -2557,6 +2562,7 @@ def interactive_mode():
                         _interactive_shell(command)
                     else:
                         console.print("[yellow]Usage: /shell <command>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 # Handle explicit intent prefixes
                 elif user_input.startswith('/github'):
@@ -2565,6 +2571,7 @@ def interactive_mode():
                         _interactive_github(query)
                     else:
                         console.print("[yellow]Usage: /github <query>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/jenkins'):
                     query = user_input[8:].strip()
@@ -2572,6 +2579,7 @@ def interactive_mode():
                         _interactive_jenkins(query)
                     else:
                         console.print("[yellow]Usage: /jenkins <query>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/jira'):
                     query = user_input[5:].strip()
@@ -2579,6 +2587,7 @@ def interactive_mode():
                         _interactive_jira(query)
                     else:
                         console.print("[yellow]Usage: /jira <query>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/neo4j'):
                     query = user_input[6:].strip()
@@ -2586,6 +2595,7 @@ def interactive_mode():
                         _interactive_neo4j(query)
                     else:
                         console.print("[yellow]Usage: /neo4j <query>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/appdynamics'):
                     query = user_input[12:].strip()
@@ -2593,6 +2603,7 @@ def interactive_mode():
                         _interactive_appdynamics(query)
                     else:
                         console.print("[yellow]Usage: /appdynamics <query>[/yellow]")
+                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/code'):
                     query = user_input[5:].strip()
@@ -2601,9 +2612,11 @@ def interactive_mode():
                     else:
                         console.print("[yellow]Usage: /code <action> [options][/yellow]")
                         _show_code_help()
+                    show_footer(compact=True)
                     continue
                 else:
                     console.print(f"[red]Unknown command: {user_input}[/red]")
+                    show_footer(compact=True)
                     continue
             
             # Smart command detection in natural language
@@ -3629,6 +3642,7 @@ def _interactive_chat(user_input: str, router, db, history, persona, context):
                     history.add_message("assistant", analysis_summary, command="failure_analysis")
                     
                     console.print(f"\n[dim]💡 This analysis was based on the recent runtime error[/dim]")
+                    show_footer(compact=True)
                     return
                     
                 except Exception as e:
@@ -3646,6 +3660,7 @@ def _interactive_chat(user_input: str, router, db, history, persona, context):
         elif any(pattern in user_lower for pattern in analysis_patterns) and not _last_execution_info:
             console.print("[yellow]No recent program execution to analyze.[/yellow]")
             console.print("[dim]Run a program first, then ask me to analyze it.[/dim]")
+            show_footer(compact=True)
             return
         
         # Always try smart file discovery first - let the LLM decide if it needs the files
@@ -3707,9 +3722,11 @@ RELATED CODE:\n{snippets}"""
         history.add_message("assistant", resp, command="interactive")
         
         console.print(f"\n[bold green]🤖 Lumos:[/bold green] {resp}\n")
+        show_footer(compact=True)
         
     except Exception as e:
         console.print(f"[red]Chat error: {e}[/red]")
+        show_footer(compact=True)
 
 # GitHub Integration Commands
 def github_clone(org_repo: str, branch: str = None, target_dir: str = None):

@@ -2542,6 +2542,42 @@ def interactive_mode():
                     else:
                         console.print("[yellow]Usage: /shell <command>[/yellow]")
                     continue
+                # Handle explicit intent prefixes
+                elif user_input.startswith('/github'):
+                    query = user_input[7:].strip()
+                    if query:
+                        _interactive_github(query)
+                    else:
+                        console.print("[yellow]Usage: /github <query>[/yellow]")
+                    continue
+                elif user_input.startswith('/jenkins'):
+                    query = user_input[8:].strip()
+                    if query:
+                        _interactive_jenkins(query)
+                    else:
+                        console.print("[yellow]Usage: /jenkins <query>[/yellow]")
+                    continue
+                elif user_input.startswith('/jira'):
+                    query = user_input[5:].strip()
+                    if query:
+                        _interactive_jira(query)
+                    else:
+                        console.print("[yellow]Usage: /jira <query>[/yellow]")
+                    continue
+                elif user_input.startswith('/neo4j'):
+                    query = user_input[6:].strip()
+                    if query:
+                        _interactive_neo4j(query)
+                    else:
+                        console.print("[yellow]Usage: /neo4j <query>[/yellow]")
+                    continue
+                elif user_input.startswith('/appdynamics'):
+                    query = user_input[12:].strip()
+                    if query:
+                        _interactive_appdynamics(query)
+                    else:
+                        console.print("[yellow]Usage: /appdynamics <query>[/yellow]")
+                    continue
                 else:
                     console.print(f"[red]Unknown command: {user_input}[/red]")
                     continue
@@ -2803,6 +2839,13 @@ def _show_interactive_help():
   /start [command]      - Start app with error handling
   /fix [error]          - Analyze and fix errors
   /sessions             - List chat sessions
+
+[bold]Explicit Intent Prefixes:[/bold]
+  /github <query>       - GitHub operations (PRs, commits, repos)
+  /jenkins <query>      - Jenkins operations (builds, jobs, status)
+  /jira <query>         - Jira operations (tickets, issues, comments)
+  /neo4j <query>        - Neo4j operations (dependencies, impact analysis)
+  /appdynamics <query>  - AppDynamics operations (monitoring, alerts)
 
 [bold]Natural Language:[/bold]
   "add error handling"              → Smart file discovery

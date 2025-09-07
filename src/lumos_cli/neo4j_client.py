@@ -156,15 +156,19 @@ class Neo4jClient:
         try:
             with self.driver.session() as session:
                 query = """
-                MATCH (f:File {path: $file_path, repository: $repo, organization: $org})
-                MERGE (c:Class {name: $class_name, repository: $repo, organization: $org})
+                MATCH (r:Repository {name: $repo, organization: $org})
+                MERGE (c:Class {name: $class_name, namespace: $namespace})
                 SET c.type = $class_type,
                     c.file_path = $file_path,
+                    c.source = $repo,
                     c.metadata = $metadata,
                     c.created_at = datetime()
-                MERGE (f)-[:CONTAINS]->(c)
+                MERGE (r)-[:HAS_CLASSES]->(c)
                 RETURN c
                 """
+                
+                # Generate namespace from org and repo
+                namespace = f"{org}.{repo}"
                 
                 result = session.run(query, {
                     "repo": repo,
@@ -172,6 +176,7 @@ class Neo4jClient:
                     "file_path": file_path,
                     "class_name": class_name,
                     "class_type": class_type,
+                    "namespace": namespace,
                     "metadata": json.dumps(metadata) if metadata else None
                 })
                 
@@ -195,15 +200,21 @@ class Neo4jClient:
         try:
             with self.driver.session() as session:
                 query = """
-                MATCH (c:Class {name: $class_name, repository: $repo, organization: $org})
-                MERGE (m:Method {name: $method_name, repository: $repo, organization: $org})
+                MATCH (r:Repository {name: $repo, organization: $org})
+                MATCH (r)-[:HAS_CLASSES]->(c:Class {name: $class_name, namespace: $namespace})
+                MERGE (m:Method {name: $method_name, namespace: $method_namespace})
                 SET m.class_name = $class_name,
                     m.file_path = $file_path,
+                    m.source = $repo,
                     m.metadata = $metadata,
                     m.created_at = datetime()
-                MERGE (c)-[:CONTAINS]->(m)
+                MERGE (c)-[:HAS_METHOD]->(m)
                 RETURN m
                 """
+                
+                # Generate namespaces
+                namespace = f"{org}.{repo}"
+                method_namespace = f"{org}.{repo}.{class_name}.{method_name}"
                 
                 result = session.run(query, {
                     "repo": repo,
@@ -211,6 +222,8 @@ class Neo4jClient:
                     "file_path": file_path,
                     "class_name": class_name,
                     "method_name": method_name,
+                    "namespace": namespace,
+                    "method_namespace": method_namespace,
                     "metadata": json.dumps(metadata) if metadata else None
                 })
                 
@@ -234,18 +247,23 @@ class Neo4jClient:
         try:
             with self.driver.session() as session:
                 query = """
-                MATCH (from:Class {name: $from_class, repository: $repo, organization: $org})
-                MATCH (to:Class {name: $to_class, repository: $repo, organization: $org})
-                MERGE (from)-[r:DEPENDS_ON {type: $dep_type}]->(to)
-                SET r.created_at = datetime()
-                RETURN r
+                MATCH (r:Repository {name: $repo, organization: $org})
+                MATCH (r)-[:HAS_CLASSES]->(from:Class {name: $from_class, namespace: $namespace})
+                MATCH (r)-[:HAS_CLASSES]->(to:Class {name: $to_class, namespace: $namespace})
+                MERGE (from)-[rel:DEPENDS_ON {type: $dep_type}]->(to)
+                SET rel.created_at = datetime()
+                RETURN rel
                 """
+                
+                # Generate namespace
+                namespace = f"{org}.{repo}"
                 
                 result = session.run(query, {
                     "from_class": from_class,
                     "to_class": to_class,
                     "repo": repo,
                     "org": org,
+                    "namespace": namespace,
                     "dep_type": dep_type
                 })
                 
@@ -267,12 +285,16 @@ class Neo4jClient:
         try:
             with self.driver.session() as session:
                 query = """
-                MATCH (target:Class {name: $class_name, repository: $repo, organization: $org})
+                MATCH (repo:Repository {name: $repo, organization: $org})
+                MATCH (repo)-[:HAS_CLASSES]->(target:Class {name: $class_name})
                 MATCH (dependent:Class)-[:DEPENDS_ON]->(target)
+                MATCH (dependent)<-[:HAS_CLASSES]-(dependent_repo:Repository)
                 RETURN dependent.name as dependent_class,
                        dependent.type as class_type,
                        dependent.file_path as file_path,
-                       dependent.metadata as metadata
+                       dependent.metadata as metadata,
+                       dependent_repo.name as repository,
+                       dependent_repo.organization as organization
                 ORDER BY dependent.name
                 """
                 
@@ -288,7 +310,9 @@ class Neo4jClient:
                         "class_name": record["dependent_class"],
                         "class_type": record["class_type"],
                         "file_path": record["file_path"],
-                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None
+                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None,
+                        "repository": record["repository"],
+                        "organization": record["organization"]
                     })
                 
                 debug_logger.info(f"Found {len(impacts)} dependent classes for {class_name}")
@@ -309,13 +333,17 @@ class Neo4jClient:
         try:
             with self.driver.session() as session:
                 query = """
-                MATCH (source:Class {name: $class_name, repository: $repo, organization: $org})
+                MATCH (repo:Repository {name: $repo, organization: $org})
+                MATCH (repo)-[:HAS_CLASSES]->(source:Class {name: $class_name})
                 MATCH (source)-[r:DEPENDS_ON]->(target:Class)
+                MATCH (target)<-[:HAS_CLASSES]-(target_repo:Repository)
                 RETURN target.name as target_class,
                        target.type as class_type,
                        target.file_path as file_path,
                        r.type as dependency_type,
-                       target.metadata as metadata
+                       target.metadata as metadata,
+                       target_repo.name as repository,
+                       target_repo.organization as organization
                 ORDER BY target.name
                 """
                 
@@ -332,7 +360,9 @@ class Neo4jClient:
                         "class_type": record["class_type"],
                         "file_path": record["file_path"],
                         "dependency_type": record["dependency_type"],
-                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None
+                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None,
+                        "repository": record["repository"],
+                        "organization": record["organization"]
                     })
                 
                 debug_logger.info(f"Found {len(dependencies)} dependencies for {class_name}")
@@ -355,21 +385,24 @@ class Neo4jClient:
                 # Get counts
                 count_query = """
                 MATCH (r:Repository {name: $repo, organization: $org})
-                OPTIONAL MATCH (r)-[:CONTAINS]->(f:File)
-                OPTIONAL MATCH (r)-[:CONTAINS]->(c:Class)
-                OPTIONAL MATCH (r)-[:CONTAINS]->(m:Method)
-                RETURN count(DISTINCT f) as file_count,
-                       count(DISTINCT c) as class_count,
-                       count(DISTINCT m) as method_count
+                OPTIONAL MATCH (r)-[:HAS_CLASSES]->(c:Class)
+                OPTIONAL MATCH (c)-[:HAS_METHOD]->(m:Method)
+                OPTIONAL MATCH (r)-[:HAS_CONSTANTS]->(const:Constant)
+                OPTIONAL MATCH (r)-[:HAS_ENUMS]->(e:Enum)
+                RETURN count(DISTINCT c) as class_count,
+                       count(DISTINCT m) as method_count,
+                       count(DISTINCT const) as constant_count,
+                       count(DISTINCT e) as enum_count
                 """
                 
                 result = session.run(count_query, {"repo": repo, "org": org})
                 record = result.single()
                 
                 overview = {
-                    "file_count": record["file_count"] or 0,
                     "class_count": record["class_count"] or 0,
-                    "method_count": record["method_count"] or 0
+                    "method_count": record["method_count"] or 0,
+                    "constant_count": record["constant_count"] or 0,
+                    "enum_count": record["enum_count"] or 0
                 }
                 
                 debug_logger.info(f"Repository overview: {overview}")

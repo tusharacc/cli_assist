@@ -3196,9 +3196,9 @@ def _interactive_neo4j(query: str):
                         
                         for dep in dependencies:
                             table.add_row(
-                                dep.get('dependent_class', 'Unknown'),
+                                dep.get('class_name', 'Unknown'),
                                 dep.get('repository', 'Unknown'),
-                                dep.get('relationship_type', 'Unknown')
+                                dep.get('dependency_type', 'Unknown')
                             )
                         console.print(table)
                     else:
@@ -3225,9 +3225,9 @@ def _interactive_neo4j(query: str):
                         
                         for item in impact:
                             table.add_row(
-                                item.get('affected_class', 'Unknown'),
+                                item.get('class_name', 'Unknown'),
                                 item.get('repository', 'Unknown'),
-                                item.get('impact_type', 'Unknown')
+                                item.get('class_type', 'Unknown')
                             )
                         console.print(table)
                     else:
@@ -3244,7 +3244,7 @@ def _interactive_neo4j(query: str):
                     if dependencies:
                         console.print(f"[green]✅ Found {len(dependencies)} dependencies[/green]")
                         for dep in dependencies[:5]:  # Show first 5
-                            console.print(f"  • {dep.get('dependent_class', 'Unknown')} in {dep.get('repository', 'Unknown')}")
+                            console.print(f"  • {dep.get('class_name', 'Unknown')} in {dep.get('repository', 'Unknown')}")
                         if len(dependencies) > 5:
                             console.print(f"  ... and {len(dependencies) - 5} more")
                     else:
@@ -3255,7 +3255,7 @@ def _interactive_neo4j(query: str):
                     if impact:
                         console.print(f"[red]⚠️ Found {len(impact)} affected classes[/red]")
                         for item in impact[:5]:  # Show first 5
-                            console.print(f"  • {item.get('affected_class', 'Unknown')} in {item.get('repository', 'Unknown')}")
+                            console.print(f"  • {item.get('class_name', 'Unknown')} in {item.get('repository', 'Unknown')}")
                         if len(impact) > 5:
                             console.print(f"  ... and {len(impact) - 5} more")
                     else:

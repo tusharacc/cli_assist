@@ -19,6 +19,7 @@ from .shell_executor import execute_shell_command
 from .github_client import GitHubClient
 from .github_query_parser import GitHubQueryParser
 from .neo4j_client import Neo4jClient
+from .neo4j_dotnet_client import Neo4jDotNetClient
 from .neo4j_config import Neo4jConfigManager
 import re
 
@@ -1972,6 +1973,222 @@ def neo4j(
     else:
         console.print("[red]Invalid action. Use: config, test, impact, deps, overview, or populate[/red]")
         console.print("Run 'lumos-cli neo4j --help' for examples")
+
+@app.command()
+def neo4j_dotnet(
+    action: str = typer.Argument(help="Action: config, test, populate, controllers, constants, overview"),
+    repo_name: str = typer.Option("", "--repo", "-r", help="Repository name"),
+    repo_namespace: str = typer.Option("", "--namespace", "-n", help="Repository namespace"),
+    sp_name: str = typer.Option("", "--sp", "-s", help="Stored procedure name"),
+    constant_name: str = typer.Option("", "--constant", "-c", help="Constant name")
+):
+    """🔗 Neo4j .NET Core integration for enterprise architecture analysis
+    
+    Examples:
+      lumos-cli neo4j-dotnet config                           → Setup Neo4j connection
+      lumos-cli neo4j-dotnet test                             → Test Neo4j connection
+      lumos-cli neo4j-dotnet populate                         → Populate with .NET fake data
+      lumos-cli neo4j-dotnet controllers -s GetUserById       → Find controllers calling SP
+      lumos-cli neo4j-dotnet constants -c MAX_LOGIN_ATTEMPTS  → Find classes using constant
+      lumos-cli neo4j-dotnet overview -r UserManagement -n Company.UserManagement → Repository overview
+    """
+    
+    if action == "config":
+        # Configure Neo4j settings (reuse existing config)
+        config_manager = Neo4jConfigManager()
+        console.print("🔧 Neo4j .NET Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.uri}")
+            if not typer.confirm("Reconfigure Neo4j settings?"):
+                return
+        
+        success = config_manager.setup_interactive()
+        if success:
+            console.print("✅ Neo4j .NET configured successfully!")
+        else:
+            console.print("❌ Neo4j .NET configuration failed!")
+    
+    elif action == "test":
+        # Test Neo4j connection
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j-dotnet config' first.[/yellow]")
+            return
+        
+        console.print("🔍 Testing Neo4j .NET connection...")
+        client = Neo4jDotNetClient(config.uri, config.username, config.password)
+        
+        if client.test_connection():
+            console.print("✅ Neo4j .NET connection successful!")
+            
+            # Get database info
+            try:
+                with client.driver.session() as session:
+                    result = session.run("CALL dbms.components() YIELD name, versions, edition")
+                    for record in result:
+                        console.print(f"📊 Database: {record['name']} {record['versions'][0]} ({record['edition']})")
+                        break
+            except Exception as e:
+                console.print(f"⚠️ Could not get database info: {e}")
+        else:
+            console.print("❌ Neo4j .NET connection failed!")
+        
+        client.close()
+    
+    elif action == "populate":
+        # Populate with .NET fake data
+        console.print("🗄️ Populating Neo4j with .NET Core data...")
+        import subprocess
+        import sys
+        
+        try:
+            result = subprocess.run([sys.executable, "populate_neo4j_dotnet_data.py"], 
+                                  capture_output=True, text=True)
+            if result.returncode == 0:
+                console.print("✅ Neo4j .NET populated successfully!")
+                console.print(result.stdout)
+            else:
+                console.print("❌ Failed to populate Neo4j .NET:")
+                console.print(result.stderr)
+        except Exception as e:
+            console.print(f"❌ Error running .NET population script: {e}")
+    
+    elif action == "controllers":
+        # Find controllers calling stored procedure
+        if not sp_name:
+            console.print("[red]❌ Stored procedure name required for controller analysis[/red]")
+            console.print("Example: lumos-cli neo4j-dotnet controllers -s GetUserById")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j-dotnet config' first.[/yellow]")
+            return
+        
+        client = Neo4jDotNetClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"🔍 Finding controllers calling stored procedure: {sp_name}...")
+        
+        controllers = client.find_controllers_calling_sp(sp_name, "dbo")
+        
+        if controllers:
+            console.print(f"✅ Found {len(controllers)} controllers calling {sp_name}:")
+            console.print()
+            
+            from rich.table import Table
+            table = Table(title=f"Controllers Calling: {sp_name}")
+            table.add_column("Controller", style="cyan")
+            table.add_column("Namespace", style="yellow")
+            
+            for controller in controllers:
+                table.add_row(
+                    controller['controller_name'],
+                    controller['controller_namespace']
+                )
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ No controllers found calling {sp_name}")
+        
+        client.close()
+    
+    elif action == "constants":
+        # Find classes using constant
+        if not constant_name:
+            console.print("[red]❌ Constant name required for constant analysis[/red]")
+            console.print("Example: lumos-cli neo4j-dotnet constants -c MAX_LOGIN_ATTEMPTS")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j-dotnet config' first.[/yellow]")
+            return
+        
+        client = Neo4jDotNetClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"🔍 Finding classes using constant: {constant_name}...")
+        
+        classes = client.find_classes_using_constant(constant_name, "Company.UserManagement.Constants")
+        
+        if classes:
+            console.print(f"✅ Found {len(classes)} classes using {constant_name}:")
+            console.print()
+            
+            from rich.table import Table
+            table = Table(title=f"Classes Using: {constant_name}")
+            table.add_column("Class", style="cyan")
+            table.add_column("Namespace", style="yellow")
+            
+            for class_info in classes:
+                table.add_row(
+                    class_info['class_name'],
+                    class_info['class_namespace']
+                )
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ No classes found using {constant_name}")
+        
+        client.close()
+    
+    elif action == "overview":
+        # Repository overview
+        if not repo_name or not repo_namespace:
+            console.print("[red]❌ Repository name and namespace required for overview[/red]")
+            console.print("Example: lumos-cli neo4j-dotnet overview -r UserManagement -n Company.UserManagement")
+            return
+        
+        config_manager = Neo4jConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ Neo4j not configured. Run 'lumos-cli neo4j-dotnet config' first.[/yellow]")
+            return
+        
+        client = Neo4jDotNetClient(config.uri, config.username, config.password)
+        if not client.connect():
+            console.print("❌ Failed to connect to Neo4j")
+            return
+        
+        console.print(f"📊 Getting .NET overview for {repo_name}...")
+        
+        overview = client.get_repository_overview(repo_name, repo_namespace)
+        
+        if overview:
+            from rich.table import Table
+            table = Table(title=f".NET Repository Overview: {repo_name}")
+            table.add_column("Component", style="cyan")
+            table.add_column("Count", style="yellow")
+            
+            table.add_row("Classes", str(overview.get('class_count', 0)))
+            table.add_row("Methods", str(overview.get('method_count', 0)))
+            table.add_row("Controllers", str(overview.get('controller_count', 0)))
+            table.add_row("Enums", str(overview.get('enum_count', 0)))
+            table.add_row("Constants", str(overview.get('constant_count', 0)))
+            
+            console.print(table)
+        else:
+            console.print(f"ℹ️ No data found for {repo_name}")
+        
+        client.close()
+    
+    else:
+        console.print("[red]Invalid action. Use: config, test, populate, controllers, constants, or overview[/red]")
+        console.print("Run 'lumos-cli neo4j-dotnet --help' for examples")
 
 @app.command()
 def interactive_mode():

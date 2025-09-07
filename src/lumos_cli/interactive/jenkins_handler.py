@@ -43,31 +43,38 @@ def interactive_jenkins(query: str):
             debug_logger.info(f"Build status query: {num_builds} builds from {folder}")
             console.print(f"[cyan]🔍 Getting last {num_builds} build status from '{folder}'...[/cyan]")
             
-            # Get all jobs in the folder
-            jobs = jenkins.get_folder_jobs(folder)
-            if not jobs:
-                console.print(f"[yellow]ℹ️  No jobs found in folder '{folder}'[/yellow]")
-                return
-            
-            debug_logger.info(f"Found {len(jobs)} jobs in folder '{folder}'")
-            
-            # Get recent builds for each job
-            all_recent_builds = []
-            for job in jobs:
-                job_name = job.get("name", "")
-                job_path = f"{folder}/{job_name}" if folder else job_name
+            # Handle deploy-all folder specially - it contains builds directly
+            if "deploy-all" in folder:
+                debug_logger.info("Processing deploy-all folder - getting builds directly")
+                # For deploy-all, get builds directly from the folder
+                all_recent_builds = jenkins.get_folder_builds(folder, 24)
+                debug_logger.info(f"Found {len(all_recent_builds)} builds directly from deploy-all folder")
+            else:
+                # Regular folder processing - get jobs first, then builds from each job
+                jobs = jenkins.get_folder_jobs(folder)
+                if not jobs:
+                    console.print(f"[yellow]ℹ️  No jobs found in folder '{folder}'[/yellow]")
+                    return
                 
-                debug_logger.info(f"Processing job: {job_name} (path: {job_path})")
+                debug_logger.info(f"Found {len(jobs)} jobs in folder '{folder}'")
                 
-                # Get recent builds (last 24 hours to ensure we have enough data)
-                recent_builds = jenkins.get_recent_builds(job_path, 24)
-                debug_logger.info(f"Found {len(recent_builds)} recent builds for job {job_name}")
-                
-                for build in recent_builds:
-                    build["job_name"] = job_name
-                    build["job_path"] = job_path
-                
-                all_recent_builds.extend(recent_builds)
+                # Get recent builds for each job
+                all_recent_builds = []
+                for job in jobs:
+                    job_name = job.get("name", "")
+                    job_path = f"{folder}/{job_name}" if folder else job_name
+                    
+                    debug_logger.info(f"Processing job: {job_name} (path: {job_path})")
+                    
+                    # Get recent builds (last 24 hours to ensure we have enough data)
+                    recent_builds = jenkins.get_recent_builds(job_path, 24)
+                    debug_logger.info(f"Found {len(recent_builds)} recent builds for job {job_name}")
+                    
+                    for build in recent_builds:
+                        build["job_name"] = job_name
+                        build["job_path"] = job_path
+                    
+                    all_recent_builds.extend(recent_builds)
             
             # Sort by timestamp (most recent first) and take the requested number
             all_recent_builds.sort(key=lambda x: x["timestamp"], reverse=True)

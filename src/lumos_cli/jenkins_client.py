@@ -229,6 +229,68 @@ class JenkinsClient:
             console.print(f"[red]Error getting build parameters: {e}[/red]")
             return []
     
+    def get_folder_builds(self, folder_path: str, hours: int = 24) -> List[Dict]:
+        """Get builds directly from a folder (like deploy-all)"""
+        debug_logger.log_function_call("JenkinsClient.get_folder_builds", kwargs={"folder_path": folder_path, "hours": hours})
+        
+        try:
+            # Convert folder path to Jenkins API format
+            api_path = folder_path.replace("/", "/job/")
+            url = f"{self.base_url}/job/{api_path}/api/json"
+            
+            debug_logger.debug(f"Jenkins folder API path: {api_path}")
+            debug_logger.debug(f"Jenkins folder URL: {url}")
+            
+            response = self.session.get(url)
+            debug_logger.debug(f"Jenkins folder response status: {response.status_code}")
+            
+            response.raise_for_status()
+            
+            data = response.json()
+            debug_logger.debug(f"Raw Jenkins folder API response keys: {list(data.keys())}")
+            debug_logger.debug(f"Full Jenkins folder API response: {json.dumps(data, indent=2)}")
+            
+            # Look for builds directly in the folder
+            builds = data.get("builds", [])
+            debug_logger.debug(f"Found {len(builds)} builds in folder")
+            
+            if not builds:
+                debug_logger.warning("No builds found in folder response")
+                return []
+            
+            # Process builds and filter by time
+            recent_builds = []
+            cutoff_time = datetime.now() - timedelta(hours=hours)
+            debug_logger.debug(f"Cutoff time: {cutoff_time}")
+            
+            for i, build in enumerate(builds):
+                debug_logger.debug(f"Processing build {i+1}/{len(builds)}: {build}")
+                build_info = self.get_build_info(folder_path, build["number"])
+                if build_info:
+                    build_timestamp = datetime.fromtimestamp(build_info.get("timestamp", 0) / 1000)
+                    debug_logger.debug(f"Build timestamp: {build_timestamp}")
+                    
+                    if build_timestamp >= cutoff_time:
+                        build_info["timestamp"] = build_timestamp
+                        build_info["job_name"] = folder_path.split("/")[-1]  # Use folder name as job name
+                        build_info["job_path"] = folder_path
+                        recent_builds.append(build_info)
+                        debug_logger.debug(f"Added build {build['number']} to recent builds")
+                    else:
+                        debug_logger.debug(f"Build {build['number']} is too old, skipping")
+                else:
+                    debug_logger.warning(f"Could not get build info for build {build['number']}")
+            
+            debug_logger.info(f"Found {len(recent_builds)} recent builds in folder")
+            debug_logger.log_function_return("JenkinsClient.get_folder_builds", f"Found {len(recent_builds)} builds")
+            return recent_builds
+            
+        except Exception as e:
+            debug_logger.error(f"Error getting folder builds: {e}")
+            console.print(f"[red]Error getting folder builds: {e}[/red]")
+            debug_logger.log_function_return("JenkinsClient.get_folder_builds", "Error")
+            return []
+
     def get_recent_builds(self, job_path: str, hours: int = 4) -> List[Dict]:
         """Get recent builds for a job within specified hours"""
         debug_logger.log_function_call("JenkinsClient.get_recent_builds", kwargs={"job_path": job_path, "hours": hours})

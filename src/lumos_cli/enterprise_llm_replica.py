@@ -1,10 +1,12 @@
 """
-Enterprise LLM Replica using Hugging Face GPT-4
-Simulates enterprise LLM (GPT-4) on local laptop
+Enterprise LLM Replica with OAuth2 Authentication
+Simulates enterprise LLM (GPT-4) with actual enterprise API calls
 """
 
 import os
 import json
+import requests
+import time
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from rich.console import Console
@@ -18,100 +20,183 @@ console = Console()
 @dataclass
 class EnterpriseLLMConfig:
     """Configuration for Enterprise LLM Replica"""
-    model_name: str = "microsoft/DialoGPT-large"  # Fallback to DialoGPT
-    gpt4_model: str = "gpt-4"  # Target GPT-4 model
+    # Enterprise API Configuration
+    token_url: str = ""
+    chat_url: str = ""
+    app_id: str = ""
+    app_key: str = ""
+    app_resource: str = ""
+    
+    # API Parameters
     max_tokens: int = 4096
     temperature: float = 0.7
     top_p: float = 0.9
     frequency_penalty: float = 0.0
     presence_penalty: float = 0.0
     timeout: int = 30
+    
+    # Token Management
+    access_token: str = ""
+    token_expires_at: float = 0
 
 class EnterpriseLLMReplica:
-    """Enterprise LLM Replica using Hugging Face models"""
+    """Enterprise LLM Replica with OAuth2 Authentication"""
     
     def __init__(self):
         self.console = console
         self.config = EnterpriseLLMConfig()
-        self.model = None
-        self.tokenizer = None
-        self._load_model()
+        self.session = requests.Session()
+        self._load_config()
     
-    def _load_model(self):
-        """Load the Hugging Face model"""
+    def _load_config(self):
+        """Load configuration from environment or config file"""
         try:
-            self.console.print("[cyan]🤖 Loading Enterprise LLM Replica (GPT-4 simulation)...[/cyan]")
+            # Load from environment variables
+            self.config.token_url = os.getenv("ENTERPRISE_LLM_TOKEN_URL", "")
+            self.config.chat_url = os.getenv("ENTERPRISE_LLM_CHAT_URL", "")
+            self.config.app_id = os.getenv("ENTERPRISE_LLM_APP_ID", "")
+            self.config.app_key = os.getenv("ENTERPRISE_LLM_APP_KEY", "")
+            self.config.app_resource = os.getenv("ENTERPRISE_LLM_APP_RESOURCE", "")
             
-            # Try to load a large language model that can simulate GPT-4
-            # Using microsoft/DialoGPT-large as a starting point
-            from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+            # Load from config file if environment variables not set
+            if not self.config.token_url:
+                self._load_from_config_file()
             
-            model_name = self.config.model_name
-            
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=self.console
-            ) as progress:
-                task = progress.add_task(f"Loading {model_name}", total=None)
-                
-                # Load tokenizer and model
-                self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-                self.model = AutoModelForCausalLM.from_pretrained(model_name)
-                
-                # Create pipeline
-                self.pipeline = pipeline(
-                    "text-generation",
-                    model=self.model,
-                    tokenizer=self.tokenizer,
-                    device="cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"
-                )
-                
-                progress.update(task, description=f"Loaded {model_name}")
-            
-            self.console.print(f"[green]✅ Enterprise LLM Replica loaded successfully[/green]")
-            self.console.print(f"[dim]Simulating: {self.config.gpt4_model}[/dim]")
+            if self.config.token_url and self.config.chat_url and self.config.app_id and self.config.app_key:
+                self.console.print("[green]✅ Enterprise LLM Replica configuration loaded[/green]")
+                self.console.print(f"[dim]Token URL: {self.config.token_url}[/dim]")
+                self.console.print(f"[dim]Chat URL: {self.config.chat_url}[/dim]")
+            else:
+                self.console.print("[yellow]⚠️  Enterprise LLM Replica not configured[/yellow]")
+                self.console.print("[dim]Set environment variables or use config command[/dim]")
             
         except Exception as e:
-            self.console.print(f"[red]❌ Failed to load Enterprise LLM Replica: {str(e)}[/red]")
-            debug_logger.error(f"Failed to load Enterprise LLM Replica: {e}")
-            self.model = None
-            self.tokenizer = None
-            self.pipeline = None
+            self.console.print(f"[red]❌ Failed to load Enterprise LLM Replica config: {str(e)}[/red]")
+            debug_logger.error(f"Failed to load Enterprise LLM Replica config: {e}")
+    
+    def _load_from_config_file(self):
+        """Load configuration from config file"""
+        try:
+            config_file = os.path.expanduser("~/.lumos/enterprise_llm_config.json")
+            if os.path.exists(config_file):
+                with open(config_file, 'r') as f:
+                    config_data = json.load(f)
+                    self.config.token_url = config_data.get("token_url", "")
+                    self.config.chat_url = config_data.get("chat_url", "")
+                    self.config.app_id = config_data.get("app_id", "")
+                    self.config.app_key = config_data.get("app_key", "")
+                    self.config.app_resource = config_data.get("app_resource", "")
+        except Exception as e:
+            debug_logger.error(f"Failed to load config file: {e}")
+    
+    def _get_access_token(self) -> bool:
+        """Get access token using OAuth2 client credentials flow"""
+        try:
+            if not self.config.token_url or not self.config.app_id or not self.config.app_key:
+                self.console.print("[red]❌ Enterprise LLM not configured[/red]")
+                return False
+            
+            # Check if token is still valid
+            if self.config.access_token and time.time() < self.config.token_expires_at:
+                return True
+            
+            self.console.print("[cyan]🔑 Getting access token...[/cyan]")
+            
+            # Prepare OAuth2 request
+            token_data = {
+                "grant_type": "client_credentials",
+                "client_id": self.config.app_id,
+                "client_secret": self.config.app_key,
+                "resource": self.config.app_resource
+            }
+            
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+            
+            # Make token request
+            response = self.session.post(
+                self.config.token_url,
+                data=token_data,
+                headers=headers,
+                timeout=self.config.timeout
+            )
+            
+            if response.status_code == 200:
+                token_response = response.json()
+                self.config.access_token = token_response.get("access_token", "")
+                expires_in = token_response.get("expires_in", 3600)
+                self.config.token_expires_at = time.time() + expires_in - 60  # 1 minute buffer
+                
+                self.console.print("[green]✅ Access token obtained successfully[/green]")
+                debug_logger.log_function_call("EnterpriseLLMReplica._get_access_token", {
+                    "token_url": self.config.token_url,
+                    "app_id": self.config.app_id,
+                    "expires_in": expires_in
+                })
+                return True
+            else:
+                self.console.print(f"[red]❌ Failed to get access token: {response.status_code}[/red]")
+                self.console.print(f"[red]Response: {response.text}[/red]")
+                debug_logger.error(f"Token request failed: {response.status_code} - {response.text}")
+                return False
+                
+        except Exception as e:
+            self.console.print(f"[red]❌ Error getting access token: {str(e)}[/red]")
+            debug_logger.error(f"Error getting access token: {e}")
+            return False
     
     def generate_response(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
-        """Generate response using Enterprise LLM Replica"""
-        if not self.pipeline:
-            return "Error: Enterprise LLM Replica not loaded"
-        
+        """Generate response using Enterprise LLM API"""
         try:
+            # Get access token
+            if not self._get_access_token():
+                return "Error: Failed to get access token"
+            
             debug_logger.log_function_call("EnterpriseLLMReplica.generate_response", {
                 "prompt": prompt[:100] + "..." if len(prompt) > 100 else prompt,
                 "max_tokens": max_tokens or self.config.max_tokens,
                 "temperature": temperature or self.config.temperature
             })
             
-            # Configure generation parameters
-            generation_kwargs = {
-                "max_length": (max_tokens or self.config.max_tokens) + len(prompt.split()),
+            # Prepare chat request
+            chat_data = {
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": max_tokens or self.config.max_tokens,
                 "temperature": temperature or self.config.temperature,
                 "top_p": self.config.top_p,
-                "do_sample": True,
-                "pad_token_id": self.tokenizer.eos_token_id,
-                "eos_token_id": self.tokenizer.eos_token_id,
-                "num_return_sequences": 1
+                "frequency_penalty": self.config.frequency_penalty,
+                "presence_penalty": self.config.presence_penalty
             }
             
-            # Generate response
-            result = self.pipeline(prompt, **generation_kwargs)
+            headers = {
+                "Authorization": f"Bearer {self.config.access_token}",
+                "Content-Type": "application/json"
+            }
             
-            # Extract generated text
-            generated_text = result[0]["generated_text"]
+            # Make chat request
+            response = self.session.post(
+                self.config.chat_url,
+                json=chat_data,
+                headers=headers,
+                timeout=self.config.timeout
+            )
             
-            # Remove the original prompt from the response
-            response = generated_text[len(prompt):].strip()
-            
-            return response
+            if response.status_code == 200:
+                chat_response = response.json()
+                # Extract the response content
+                if "choices" in chat_response and len(chat_response["choices"]) > 0:
+                    content = chat_response["choices"][0].get("message", {}).get("content", "")
+                    return content
+                else:
+                    return "Error: No response content received"
+            else:
+                self.console.print(f"[red]❌ Chat request failed: {response.status_code}[/red]")
+                self.console.print(f"[red]Response: {response.text}[/red]")
+                debug_logger.error(f"Chat request failed: {response.status_code} - {response.text}")
+                return f"Error: Chat request failed with status {response.status_code}"
             
         except Exception as e:
             debug_logger.error(f"Enterprise LLM Replica generation failed: {e}")
@@ -122,13 +207,56 @@ class EnterpriseLLMReplica:
         if not messages:
             return "No messages provided"
         
-        # Convert messages to a single prompt
-        prompt = self._messages_to_prompt(messages)
-        
-        # Generate response
-        response = self.generate_response(prompt)
-        
-        return response
+        try:
+            # Get access token
+            if not self._get_access_token():
+                return "Error: Failed to get access token"
+            
+            debug_logger.log_function_call("EnterpriseLLMReplica.chat", {
+                "message_count": len(messages),
+                "messages": [msg.get("role", "unknown") for msg in messages]
+            })
+            
+            # Prepare chat request with messages
+            chat_data = {
+                "messages": messages,
+                "max_tokens": self.config.max_tokens,
+                "temperature": self.config.temperature,
+                "top_p": self.config.top_p,
+                "frequency_penalty": self.config.frequency_penalty,
+                "presence_penalty": self.config.presence_penalty
+            }
+            
+            headers = {
+                "Authorization": f"Bearer {self.config.access_token}",
+                "Content-Type": "application/json"
+            }
+            
+            # Make chat request
+            response = self.session.post(
+                self.config.chat_url,
+                json=chat_data,
+                headers=headers,
+                timeout=self.config.timeout
+            )
+            
+            if response.status_code == 200:
+                chat_response = response.json()
+                # Extract the response content
+                if "choices" in chat_response and len(chat_response["choices"]) > 0:
+                    content = chat_response["choices"][0].get("message", {}).get("content", "")
+                    return content
+                else:
+                    return "Error: No response content received"
+            else:
+                self.console.print(f"[red]❌ Chat request failed: {response.status_code}[/red]")
+                self.console.print(f"[red]Response: {response.text}[/red]")
+                debug_logger.error(f"Chat request failed: {response.status_code} - {response.text}")
+                return f"Error: Chat request failed with status {response.status_code}"
+            
+        except Exception as e:
+            debug_logger.error(f"Enterprise LLM Replica chat failed: {e}")
+            return f"Error in chat: {str(e)}"
     
     def _messages_to_prompt(self, messages: List[Dict[str, str]]) -> str:
         """Convert chat messages to a single prompt"""
@@ -287,20 +415,75 @@ Review:"""
             "raw_response": response
         }
     
+    def configure(self, token_url: str, chat_url: str, app_id: str, app_key: str, app_resource: str = ""):
+        """Configure the Enterprise LLM Replica"""
+        self.config.token_url = token_url
+        self.config.chat_url = chat_url
+        self.config.app_id = app_id
+        self.config.app_key = app_key
+        self.config.app_resource = app_resource
+        
+        # Save configuration to file
+        self._save_config()
+        
+        self.console.print("[green]✅ Enterprise LLM Replica configured successfully[/green]")
+    
+    def _save_config(self):
+        """Save configuration to file"""
+        try:
+            config_dir = os.path.expanduser("~/.lumos")
+            os.makedirs(config_dir, exist_ok=True)
+            
+            config_file = os.path.join(config_dir, "enterprise_llm_config.json")
+            config_data = {
+                "token_url": self.config.token_url,
+                "chat_url": self.config.chat_url,
+                "app_id": self.config.app_id,
+                "app_key": self.config.app_key,
+                "app_resource": self.config.app_resource
+            }
+            
+            with open(config_file, 'w') as f:
+                json.dump(config_data, f, indent=2)
+            
+            debug_logger.log_function_call("EnterpriseLLMReplica._save_config", {
+                "config_file": config_file,
+                "token_url": self.config.token_url,
+                "chat_url": self.config.chat_url
+            })
+            
+        except Exception as e:
+            debug_logger.error(f"Failed to save config: {e}")
+    
+    def is_configured(self) -> bool:
+        """Check if Enterprise LLM Replica is configured"""
+        return bool(
+            self.config.token_url and 
+            self.config.chat_url and 
+            self.config.app_id and 
+            self.config.app_key
+        )
+    
     def get_model_info(self) -> Dict[str, Any]:
-        """Get information about the loaded model"""
+        """Get information about the Enterprise LLM Replica"""
         return {
-            "model_name": self.config.model_name,
-            "target_model": self.config.gpt4_model,
+            "token_url": self.config.token_url,
+            "chat_url": self.config.chat_url,
+            "app_id": self.config.app_id,
+            "app_resource": self.config.app_resource,
             "max_tokens": self.config.max_tokens,
             "temperature": self.config.temperature,
-            "loaded": self.model is not None,
-            "device": "cuda" if os.environ.get("CUDA_VISIBLE_DEVICES") else "cpu"
+            "configured": self.is_configured(),
+            "has_token": bool(self.config.access_token),
+            "token_expires_at": self.config.token_expires_at
         }
     
     def test_connection(self) -> bool:
         """Test the connection to the Enterprise LLM Replica"""
         try:
+            if not self.is_configured():
+                return False
+            
             test_prompt = "Hello, can you respond with 'Enterprise LLM Replica is working'?"
             response = self.generate_response(test_prompt, max_tokens=50)
             

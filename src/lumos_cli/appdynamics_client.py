@@ -4,6 +4,7 @@ AppDynamics REST API client for SRE monitoring and alerting
 
 import os
 import requests
+import urllib3
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
 from rich.console import Console
@@ -11,6 +12,9 @@ from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 from .debug_logger import get_debug_logger
+
+# Disable SSL warnings for enterprise environments
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 console = Console()
 debug_logger = get_debug_logger()
@@ -24,6 +28,7 @@ class AppDynamicsClient:
         self.client_id = client_id or os.getenv('APPDYNAMICS_CLIENT_ID', '')
         self.client_secret = client_secret or os.getenv('APPDYNAMICS_CLIENT_SECRET', '')
         self.session = requests.Session()
+        self.session.verify = False  # Disable SSL verification for enterprise environments
         self.access_token = None
         self.token_expires_at = None
         

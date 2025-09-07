@@ -1,0 +1,27 @@
+The Neo4J represents Abstract Syntax Trees for all the repository in an organization.
+In this case, the organization is built using dotnetcore.
+
+The nodes are - 
+1. Repository which represents a github repository
+2. Constant which mentions all the constant variable defined within repository
+3. Class which represents Class defined in the repository. There will be as many Class node as there are Classes in the repository.
+4. Method represents methods. One of each Method in the repository.
+5. Enum represents Enum. One for each Enum defined.
+6. Controller reprsents routes in the application. One node for each route.
+7. Stored Procedure reprsents Stored Procedure.
+
+The relationships are -
+1. Repository :DEPENDS_ON Repository
+2. Repository :HAS_CLASSES Class
+3. Repository :HAS_CONSTANTS Constant
+4. Repository :HAS_ENUMS Enum
+5. Class :CALLS_SP Stored Procedure
+6. Class :HAS_METHOD Method
+7. METHOD :CALLS_METHOD Method
+8. StoredProcedure :HAS_TABLES Table
+
+Each Node will have common property such as - 
+1. name
+2. namespace
+3. type
+4. source

@@ -2585,6 +2585,10 @@ def interactive_mode():
             # Smart command detection in natural language
             detected_command = _detect_command_intent(user_input)
             
+            # Check if we should suggest explicit intent for better performance
+            if detected_command.get('confidence', 0) < 0.7 and detected_command['type'] in ['github', 'jenkins', 'jira', 'neo4j', 'appdynamics']:
+                _suggest_explicit_intent(user_input, detected_command)
+            
             if detected_command['type'] == 'github':
                 _interactive_github(detected_command['query'])
             elif detected_command['type'] == 'jenkins':
@@ -2593,6 +2597,8 @@ def interactive_mode():
                 _interactive_jira(detected_command['query'])
             elif detected_command['type'] == 'neo4j':
                 _interactive_neo4j(detected_command['query'])
+            elif detected_command['type'] == 'appdynamics':
+                _interactive_appdynamics(detected_command['query'])
             elif detected_command['type'] == 'workflow':
                 _interactive_workflow(detected_command['query'], detected_command)
             elif detected_command['type'] == 'edit':
@@ -2826,6 +2832,26 @@ def _detect_command_intent_fallback(user_input: str) -> dict:
             }
     
     return {'type': 'chat', 'instruction': user_input}
+
+def _suggest_explicit_intent(user_input: str, detected_command: dict):
+    """Suggest explicit intent prefix for better performance and clarity"""
+    intent_type = detected_command['type']
+    confidence = detected_command.get('confidence', 0)
+    
+    # Map intent types to their prefixes
+    intent_prefixes = {
+        'github': '/github',
+        'jenkins': '/jenkins', 
+        'jira': '/jira',
+        'neo4j': '/neo4j',
+        'appdynamics': '/appdynamics'
+    }
+    
+    if intent_type in intent_prefixes:
+        prefix = intent_prefixes[intent_type]
+        console.print(f"\n[dim]💡 Tip: For faster routing, you can use:[/dim]")
+        console.print(f"[bright_cyan]{prefix} {user_input}[/bright_cyan]")
+        console.print(f"[dim]Confidence: {confidence:.1%} | Method: {detected_command.get('method', 'unknown')}[/dim]\n")
 
 def _show_interactive_help():
     """Show interactive mode help"""

@@ -15,6 +15,7 @@ from .file_discovery import SmartFileDiscovery
 from .error_handler import RuntimeErrorHandler, smart_start_app
 from .config import config, setup_wizard
 from .ui import create_header, create_welcome_panel, create_command_help_panel, create_status_panel, create_config_panel, print_brand_footer
+from .footer import show_footer, show_intent_help, show_quick_reference, show_status_footer
 from .shell_executor import execute_shell_command
 from .github_client import GitHubClient
 from .github_query_parser import GitHubQueryParser
@@ -2535,6 +2536,21 @@ def interactive_mode():
                 elif user_input.startswith('/sessions'):
                     _show_sessions(history)
                     continue
+                elif user_input.startswith('/footer'):
+                    query = user_input[7:].strip()
+                    if query == "compact":
+                        show_footer(compact=True)
+                    elif query == "full":
+                        show_footer(compact=False)
+                    elif query == "status":
+                        show_status_footer()
+                    elif query == "help":
+                        show_intent_help()
+                    elif query == "reference":
+                        show_quick_reference()
+                    else:
+                        show_footer(compact=True)
+                    continue
                 elif user_input.startswith('/shell'):
                     command = user_input[6:].strip()
                     if command:
@@ -2634,6 +2650,10 @@ def interactive_mode():
             else:
                 # Default to chat mode
                 _interactive_chat(user_input, router, db, history, persona, context)
+            
+            # Show compact footer after each interaction
+            if user_input.lower() not in ['/footer', '/help', '/sessions']:
+                show_footer(compact=True)
                 
         except KeyboardInterrupt:
             console.print("\n[yellow]Use 'exit' or '/exit' to quit[/yellow]")
@@ -3095,6 +3115,7 @@ def _show_interactive_help():
   /code <action>        - Comprehensive code operations (generate, edit, plan, review, fix, test, analyze, refactor, docs, format, validate)
   /start [command]      - Start app with error handling
   /sessions             - List chat sessions
+  /footer [type]        - Show footer with available intents (compact, full, status, help, reference)
 
 [bold]Explicit Intent Prefixes:[/bold]
   /github <query>       - GitHub operations (PRs, commits, repos)

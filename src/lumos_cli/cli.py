@@ -21,6 +21,8 @@ from .github_query_parser import GitHubQueryParser
 from .neo4j_client import Neo4jClient
 from .neo4j_dotnet_client import Neo4jDotNetClient
 from .neo4j_config import Neo4jConfigManager
+from .appdynamics_client import AppDynamicsClient
+from .appdynamics_config import AppDynamicsConfigManager
 import re
 
 app = typer.Typer(invoke_without_command=True, no_args_is_help=False)
@@ -2189,6 +2191,274 @@ def neo4j_dotnet(
     else:
         console.print("[red]Invalid action. Use: config, test, populate, controllers, constants, or overview[/red]")
         console.print("Run 'lumos-cli neo4j-dotnet --help' for examples")
+
+@app.command()
+def appdynamics(
+    action: str = typer.Argument(help="Action: config, test, resources, transactions, alerts, health"),
+    project: str = typer.Option("", "--project", "-p", help="Project/Application name"),
+    server: str = typer.Option("", "--server", "-s", help="Server name"),
+    duration: int = typer.Option(60, "--duration", "-d", help="Duration in minutes"),
+    severity: str = typer.Option("", "--severity", help="Alert severity (CRITICAL, WARNING, INFO)"),
+    all_servers: bool = typer.Option(False, "--all-servers", help="Show all servers"),
+    errors_only: bool = typer.Option(False, "--errors", help="Show only error transactions"),
+    slow_only: bool = typer.Option(False, "--slow", help="Show only slow transactions")
+):
+    """📊 AppDynamics SRE monitoring and alerting
+    
+    Examples:
+      lumos-cli appdynamics config                           → Setup AppDynamics connection
+      lumos-cli appdynamics test                             → Test AppDynamics connection
+      lumos-cli appdynamics resources -p PaymentService     → Show resource utilization
+      lumos-cli appdynamics resources -s web-server-01      → Show specific server resources
+      lumos-cli appdynamics transactions -p UserManagement  → Show business transaction health
+      lumos-cli appdynamics alerts --severity CRITICAL      → Show critical alerts
+      lumos-cli appdynamics health -p OrderProcessing       → Show overall health dashboard
+    """
+    
+    if action == "config":
+        # Configure AppDynamics settings
+        config_manager = AppDynamicsConfigManager()
+        console.print("🔧 AppDynamics Configuration", style="bold blue")
+        
+        existing_config = config_manager.load_config()
+        if existing_config:
+            console.print(f"✅ Current config: {existing_config.instance_name} ({existing_config.base_url})")
+            if not typer.confirm("Reconfigure AppDynamics settings?"):
+                return
+        
+        success = config_manager.setup_interactive()
+        if success:
+            console.print("✅ AppDynamics configured successfully!")
+        else:
+            console.print("❌ AppDynamics configuration failed!")
+    
+    elif action == "test":
+        # Test AppDynamics connection
+        config_manager = AppDynamicsConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/yellow]")
+            return
+        
+        console.print("🔍 Testing AppDynamics connection...")
+        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        
+        if client.test_connection():
+            console.print("✅ AppDynamics connection successful!")
+            
+            # Show available applications
+            applications = client.get_applications()
+            if applications:
+                console.print(f"\n📊 Available Applications ({len(applications)}):")
+                for app in applications[:10]:
+                    console.print(f"  • {app.get('name', 'Unknown')}")
+                if len(applications) > 10:
+                    console.print(f"  ... and {len(applications) - 10} more")
+        else:
+            console.print("❌ AppDynamics connection failed!")
+    
+    elif action == "resources":
+        # Show resource utilization
+        if not project and not server:
+            console.print("[red]❌ Project or server name required[/red]")
+            console.print("Example: lumos-cli appdynamics resources -p PaymentService")
+            console.print("Example: lumos-cli appdynamics resources -s web-server-01")
+            return
+        
+        config_manager = AppDynamicsConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/yellow]")
+            return
+        
+        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        if not client.test_connection():
+            console.print("❌ Failed to connect to AppDynamics")
+            return
+        
+        if project:
+            # Show resources for all servers in a project
+            app_id = client.get_application_id(project)
+            if not app_id:
+                console.print(f"[red]❌ Project '{project}' not found[/red]")
+                return
+            
+            servers = client.get_servers(app_id)
+            if not servers:
+                console.print(f"[yellow]No servers found for project '{project}'[/yellow]")
+                return
+            
+            console.print(f"🖥️ Resource Utilization - {project} ({len(servers)} servers)")
+            console.print("=" * 60)
+            
+            for server in servers:
+                server_name = server.get('name', 'Unknown')
+                server_id = server.get('id')
+                
+                if server_id:
+                    utilization = client.get_resource_utilization(app_id, server_id, duration)
+                    if utilization:
+                        client.display_resource_utilization(utilization, server_name)
+                        console.print()  # Add spacing between servers
+        
+        elif server:
+            # Show resources for specific server
+            # First find which project contains this server
+            applications = client.get_applications()
+            found = False
+            
+            for app in applications:
+                app_id = app.get('id')
+                app_name = app.get('name', '')
+                servers = client.get_servers(app_id)
+                
+                for srv in servers:
+                    if srv.get('name', '').lower() == server.lower():
+                        utilization = client.get_resource_utilization(app_id, srv.get('id'), duration)
+                        if utilization:
+                            console.print(f"🖥️ Resource Utilization - {server} ({app_name})")
+                            console.print("=" * 60)
+                            client.display_resource_utilization(utilization, server)
+                            found = True
+                        break
+                
+                if found:
+                    break
+            
+            if not found:
+                console.print(f"[red]❌ Server '{server}' not found in any project[/red]")
+    
+    elif action == "transactions":
+        # Show business transaction health
+        if not project:
+            console.print("[red]❌ Project name required[/red]")
+            console.print("Example: lumos-cli appdynamics transactions -p PaymentService")
+            return
+        
+        config_manager = AppDynamicsConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/yellow]")
+            return
+        
+        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        if not client.test_connection():
+            console.print("❌ Failed to connect to AppDynamics")
+            return
+        
+        app_id = client.get_application_id(project)
+        if not app_id:
+            console.print(f"[red]❌ Project '{project}' not found[/red]")
+            return
+        
+        console.print(f"📊 Business Transaction Health - {project}")
+        console.print("=" * 60)
+        
+        transactions = client.get_business_transactions(app_id, duration)
+        if transactions:
+            # Filter based on options
+            if errors_only:
+                transactions = [t for t in transactions if (t.get('errorRate', 0) or 0) > 0]
+            if slow_only:
+                transactions = [t for t in transactions if (t.get('avgResponseTime', 0) or 0) > 2000]  # > 2 seconds
+            
+            if transactions:
+                client.display_business_transactions(transactions, project)
+            else:
+                console.print(f"[green]✅ No {'error' if errors_only else 'slow' if slow_only else ''} transactions found[/green]")
+        else:
+            console.print(f"[yellow]No business transactions found for '{project}'[/yellow]")
+    
+    elif action == "alerts":
+        # Show alerts
+        config_manager = AppDynamicsConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/yellow]")
+            return
+        
+        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        if not client.test_connection():
+            console.print("❌ Failed to connect to AppDynamics")
+            return
+        
+        app_id = None
+        if project:
+            app_id = client.get_application_id(project)
+            if not app_id:
+                console.print(f"[red]❌ Project '{project}' not found[/red]")
+                return
+        
+        console.print(f"🚨 Alerts - {project if project else 'All Applications'}")
+        console.print("=" * 60)
+        
+        alerts = client.get_alerts(app_id, severity, duration)
+        client.display_alerts(alerts, project if project else "All Applications")
+    
+    elif action == "health":
+        # Show overall health dashboard
+        if not project:
+            console.print("[red]❌ Project name required[/red]")
+            console.print("Example: lumos-cli appdynamics health -p PaymentService")
+            return
+        
+        config_manager = AppDynamicsConfigManager()
+        config = config_manager.load_config()
+        
+        if not config:
+            console.print("[yellow]⚠️ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/yellow]")
+            return
+        
+        client = AppDynamicsClient(config.base_url, config.username, config.password)
+        if not client.test_connection():
+            console.print("❌ Failed to connect to AppDynamics")
+            return
+        
+        app_id = client.get_application_id(project)
+        if not app_id:
+            console.print(f"[red]❌ Project '{project}' not found[/red]")
+            return
+        
+        console.print(f"🏥 Health Dashboard - {project}")
+        console.print("=" * 60)
+        
+        # Get servers
+        servers = client.get_servers(app_id)
+        console.print(f"\n🖥️ Servers ({len(servers)}):")
+        for server in servers:
+            server_name = server.get('name', 'Unknown')
+            console.print(f"  • {server_name}")
+        
+        # Get business transactions
+        transactions = client.get_business_transactions(app_id, duration)
+        if transactions:
+            console.print(f"\n📊 Business Transactions ({len(transactions)}):")
+            error_count = len([t for t in transactions if (t.get('errorRate', 0) or 0) > 0])
+            slow_count = len([t for t in transactions if (t.get('avgResponseTime', 0) or 0) > 2000])
+            
+            console.print(f"  • Total: {len(transactions)}")
+            console.print(f"  • With Errors: {error_count}")
+            console.print(f"  • Slow (>2s): {slow_count}")
+        
+        # Get alerts
+        alerts = client.get_alerts(app_id, None, duration)
+        if alerts:
+            critical_count = len([a for a in alerts if a.get('severity') == 'CRITICAL'])
+            warning_count = len([a for a in alerts if a.get('severity') == 'WARNING'])
+            
+            console.print(f"\n🚨 Alerts ({len(alerts)}):")
+            console.print(f"  • Critical: {critical_count}")
+            console.print(f"  • Warning: {warning_count}")
+        else:
+            console.print(f"\n🚨 Alerts: 0 (All good!)")
+    
+    else:
+        console.print("[red]Invalid action. Use: config, test, resources, transactions, alerts, or health[/red]")
+        console.print("Run 'lumos-cli appdynamics --help' for examples")
 
 @app.command()
 def interactive_mode():

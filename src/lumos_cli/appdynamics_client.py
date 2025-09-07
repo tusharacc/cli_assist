@@ -96,7 +96,7 @@ class AppDynamicsClient:
                 return False
             
             # Test with a simple API call
-            response = self.session.get(f"{self.base_url}/controller/rest/applications")
+            response = self.session.get(f"{self.base_url}/controller/rest/applications?output=JSON")
             if response.status_code == 200:
                 debug_logger.info("AppDynamics connection successful")
                 debug_logger.log_function_return("AppDynamicsClient.test_connection", "Success")
@@ -121,7 +121,7 @@ class AppDynamicsClient:
                 debug_logger.log_function_return("AppDynamicsClient.get_applications", "Token failed")
                 return []
             
-            response = self.session.get(f"{self.base_url}/controller/rest/applications")
+            response = self.session.get(f"{self.base_url}/controller/rest/applications?output=JSON")
             response.raise_for_status()
             applications = response.json()
             
@@ -153,7 +153,7 @@ class AppDynamicsClient:
         debug_logger.log_function_call("AppDynamicsClient.get_servers", kwargs={"app_id": app_id})
         
         try:
-            response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/nodes")
+            response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/nodes?output=JSON")
             response.raise_for_status()
             servers = response.json()
             
@@ -180,7 +180,8 @@ class AppDynamicsClient:
                 'metric-path': metric_path,
                 'time-range-type': 'BEFORE_NOW',
                 'duration-in-mins': duration_in_mins,
-                'rollup': 'true'
+                'rollup': 'true',
+                'output': 'JSON'
             }
             
             response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/nodes/{server_id}/metrics", params=params)
@@ -311,7 +312,8 @@ class AppDynamicsClient:
                 'application-id': app_id,
                 'time-range-type': 'BEFORE_NOW',
                 'duration-in-mins': duration_in_mins,
-                'rollup': 'true'
+                'rollup': 'true',
+                'output': 'JSON'
             }
             
             response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/business-transactions", params=params)
@@ -337,7 +339,8 @@ class AppDynamicsClient:
                 'application-id': app_id,
                 'time-range-type': 'BEFORE_NOW',
                 'duration-in-mins': duration_in_mins,
-                'rollup': 'true'
+                'rollup': 'true',
+                'output': 'JSON'
             }
             
             # Get error rate
@@ -389,7 +392,8 @@ class AppDynamicsClient:
         try:
             params = {
                 'time-range-type': 'BEFORE_NOW',
-                'duration-in-mins': duration_in_mins
+                'duration-in-mins': duration_in_mins,
+                'output': 'JSON'
             }
             
             if app_id:

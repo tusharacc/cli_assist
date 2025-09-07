@@ -284,17 +284,16 @@ class Neo4jClient:
         
         try:
             with self.driver.session() as session:
+                # Enterprise schema uses namespace and source properties
                 query = """
-                MATCH (repo:Repository {name: $repo, organization: $org})
-                MATCH (repo)-[:HAS_CLASSES]->(target:Class {name: $class_name})
+                MATCH (target:Class {name: $class_name, source: $repo})
                 MATCH (dependent:Class)-[:DEPENDS_ON]->(target)
-                MATCH (dependent)<-[:HAS_CLASSES]-(dependent_repo:Repository)
+                OPTIONAL MATCH (dependent)<-[:HAS_CLASSES]-(dependent_repo:Repository)
                 RETURN dependent.name as dependent_class,
                        dependent.type as class_type,
                        dependent.file_path as file_path,
-                       dependent.metadata as metadata,
-                       dependent_repo.name as repository,
-                       dependent_repo.organization as organization
+                       dependent.namespace as dependent_namespace,
+                       COALESCE(dependent_repo.name, dependent.source) as repository
                 ORDER BY dependent.name
                 """
                 
@@ -310,9 +309,8 @@ class Neo4jClient:
                         "class_name": record["dependent_class"],
                         "class_type": record["class_type"],
                         "file_path": record["file_path"],
-                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None,
-                        "repository": record["repository"],
-                        "organization": record["organization"]
+                        "namespace": record["dependent_namespace"],
+                        "repository": record["repository"]
                     })
                 
                 debug_logger.info(f"Found {len(impacts)} dependent classes for {class_name}")
@@ -332,18 +330,17 @@ class Neo4jClient:
         
         try:
             with self.driver.session() as session:
+                # Enterprise schema uses namespace and source properties
                 query = """
-                MATCH (repo:Repository {name: $repo, organization: $org})
-                MATCH (repo)-[:HAS_CLASSES]->(source:Class {name: $class_name})
+                MATCH (source:Class {name: $class_name, source: $repo})
                 MATCH (source)-[r:DEPENDS_ON]->(target:Class)
-                MATCH (target)<-[:HAS_CLASSES]-(target_repo:Repository)
+                OPTIONAL MATCH (target)<-[:HAS_CLASSES]-(target_repo:Repository)
                 RETURN target.name as target_class,
                        target.type as class_type,
                        target.file_path as file_path,
+                       target.namespace as target_namespace,
                        r.type as dependency_type,
-                       target.metadata as metadata,
-                       target_repo.name as repository,
-                       target_repo.organization as organization
+                       COALESCE(target_repo.name, target.source) as repository
                 ORDER BY target.name
                 """
                 
@@ -359,10 +356,9 @@ class Neo4jClient:
                         "class_name": record["target_class"],
                         "class_type": record["class_type"],
                         "file_path": record["file_path"],
+                        "namespace": record["target_namespace"],
                         "dependency_type": record["dependency_type"],
-                        "metadata": json.loads(record["metadata"]) if record["metadata"] else None,
-                        "repository": record["repository"],
-                        "organization": record["organization"]
+                        "repository": record["repository"]
                     })
                 
                 debug_logger.info(f"Found {len(dependencies)} dependencies for {class_name}")
@@ -382,17 +378,19 @@ class Neo4jClient:
         
         try:
             with self.driver.session() as session:
-                # Get counts
+                # Enterprise schema uses source property instead of organization
                 count_query = """
-                MATCH (r:Repository {name: $repo, organization: $org})
+                MATCH (r:Repository {name: $repo})
                 OPTIONAL MATCH (r)-[:HAS_CLASSES]->(c:Class)
                 OPTIONAL MATCH (c)-[:HAS_METHOD]->(m:Method)
                 OPTIONAL MATCH (r)-[:HAS_CONSTANTS]->(const:Constant)
                 OPTIONAL MATCH (r)-[:HAS_ENUMS]->(e:Enum)
+                OPTIONAL MATCH (r)-[:HAS_ROUTES]->(ctrl)
                 RETURN count(DISTINCT c) as class_count,
                        count(DISTINCT m) as method_count,
                        count(DISTINCT const) as constant_count,
-                       count(DISTINCT e) as enum_count
+                       count(DISTINCT e) as enum_count,
+                       count(DISTINCT ctrl) as controller_count
                 """
                 
                 result = session.run(count_query, {"repo": repo, "org": org})
@@ -402,7 +400,8 @@ class Neo4jClient:
                     "class_count": record["class_count"] or 0,
                     "method_count": record["method_count"] or 0,
                     "constant_count": record["constant_count"] or 0,
-                    "enum_count": record["enum_count"] or 0
+                    "enum_count": record["enum_count"] or 0,
+                    "controller_count": record["controller_count"] or 0
                 }
                 
                 debug_logger.info(f"Repository overview: {overview}")

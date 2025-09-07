@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from lumos_cli.jira_client import JiraClient, JiraConfig, JiraConfigManager, JiraTicketBrowser
 from rich.console import Console
+from test_utils import is_jira_configured, skip_if_not_configured
 
 console = Console()
 
@@ -18,6 +19,10 @@ def test_jql_construction():
     """Test JQL query construction from natural language"""
     console.print("\n🔍 Testing JQL Construction", style="bold blue")
     console.print("="*50)
+    
+    if not is_jira_configured():
+        console.print("⏭️  Skipping JQL construction test - Jira not configured")
+        return
     
     config = JiraConfig(
         base_url="https://test.atlassian.net",
@@ -73,6 +78,10 @@ def test_configuration_management():
     console.print("\n⚙️ Testing Configuration Management", style="bold green")
     console.print("="*50)
     
+    if not is_jira_configured():
+        console.print("⏭️  Skipping configuration management test - Jira not configured")
+        return
+    
     # Create test config
     test_config = JiraConfig(
         base_url="https://company.atlassian.net",
@@ -127,6 +136,10 @@ def test_ticket_browser_functionality():
     """Test ticket browser display and navigation logic"""
     console.print("\n🎫 Testing Ticket Browser", style="bold yellow")
     console.print("="*50)
+    
+    if not is_jira_configured():
+        console.print("⏭️  Skipping ticket browser test - Jira not configured")
+        return
     
     # Create mock tickets for testing
     from lumos_cli.jira_client import JiraTicket
@@ -194,6 +207,10 @@ def test_enterprise_workflow():
     """Test the complete enterprise workflow"""
     console.print("\n🏢 Testing Enterprise Workflow", style="bold cyan")
     console.print("="*50)
+    
+    if not is_jira_configured():
+        console.print("⏭️  Skipping enterprise workflow test - Jira not configured")
+        return
     
     workflow_steps = [
         "1. Developer starts work day",

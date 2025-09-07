@@ -15,6 +15,7 @@ from lumos_cli.ui import create_header
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+from test_utils import is_enterprise_llm_configured
 
 def test_enterprise_configuration():
     """Test enterprise configuration detection"""
@@ -65,7 +66,7 @@ def test_enterprise_provider_direct():
     """Test enterprise provider directly (if configured)"""
     console = Console()
     
-    if not is_enterprise_configured():
+    if not is_enterprise_llm_configured():
         console.print("\n🏢 Enterprise not configured - skipping direct provider test")
         return False
     
@@ -99,7 +100,7 @@ def test_llm_router_with_enterprise():
     """Test LLM router with enterprise backend"""
     console = Console()
     
-    if not config.is_enterprise_configured():
+    if not is_enterprise_llm_configured():
         console.print("\n🏢 Enterprise not configured - skipping router test")
         return False
     

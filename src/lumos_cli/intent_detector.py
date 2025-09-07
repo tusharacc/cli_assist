@@ -118,8 +118,9 @@ class IntentDetector:
                 r'(deployment|devops|ci|cd|pipeline)\s+(.+)',
                 r'(architecture|design|pattern|principle)\s+(.+)'
             ],
+            # Legacy intents - these will be routed to 'code' intent
             'edit': [
-                r'^(edit|modify|update|change|fix)\s+(.+)',
+                r'^(edit|modify|update|change)\s+(.+)',
                 r'^add\s+(.+)\s+to\s+(.+)',
                 r'^(.+)\s+(add|implement|improve)\s+(.+)'
             ],
@@ -130,6 +131,10 @@ class IntentDetector:
             'plan': [
                 r'^(plan|design|architecture)\s+(.+)',
                 r'^(create|build|develop)\s+(.+)'
+            ],
+            'fix': [
+                r'^(fix|debug|resolve|correct)\s+(.+)',
+                r'^(bug|error|issue|problem)\s+(.+)'
             ]
         }
     
@@ -140,17 +145,26 @@ class IntentDetector:
         # First try regex patterns for fast detection
         regex_result = self._detect_with_regex(user_input)
         if regex_result and regex_result.get('confidence', 0) > 0.8:
+            # Route legacy intents to code
+            if regex_result['type'] in ['edit', 'plan', 'review', 'fix']:
+                regex_result = self._route_legacy_intent_to_code(regex_result)
             debug_logger.log_function_return("IntentDetector.detect_intent", f"Regex detected: {regex_result['type']}")
             return regex_result
         
         # Use LLM for complex intent detection
         llm_result = self._detect_with_llm(user_input)
         if llm_result:
+            # Route legacy intents to code
+            if llm_result['type'] in ['edit', 'plan', 'review', 'fix']:
+                llm_result = self._route_legacy_intent_to_code(llm_result)
             debug_logger.log_function_return("IntentDetector.detect_intent", f"LLM detected: {llm_result['type']}")
             return llm_result
         
         # Fallback to regex with lower confidence
         if regex_result:
+            # Route legacy intents to code
+            if regex_result['type'] in ['edit', 'plan', 'review', 'fix']:
+                regex_result = self._route_legacy_intent_to_code(regex_result)
             debug_logger.log_function_return("IntentDetector.detect_intent", f"Regex fallback: {regex_result['type']}")
             return regex_result
         
@@ -163,6 +177,33 @@ class IntentDetector:
         }
         debug_logger.log_function_return("IntentDetector.detect_intent", f"Default: {result['type']}")
         return result
+    
+    def _route_legacy_intent_to_code(self, result: Dict) -> Dict:
+        """Route legacy intents (edit, plan, review, fix) to code intent"""
+        legacy_type = result['type']
+        query = result['query']
+        
+        # Map legacy intents to code actions
+        action_mapping = {
+            'edit': 'edit',
+            'plan': 'plan', 
+            'review': 'review',
+            'fix': 'fix'
+        }
+        
+        action = action_mapping.get(legacy_type, 'edit')
+        
+        # Create new result with code intent
+        new_result = {
+            'type': 'code',
+            'query': query,  # Keep original query, don't duplicate action
+            'confidence': result.get('confidence', 0.8),
+            'method': f"routed_from_{legacy_type}",
+            'original_intent': legacy_type,
+            'action': action
+        }
+        
+        return new_result
     
     def _detect_with_regex(self, user_input: str) -> Optional[Dict]:
         """Detect intent using regex patterns"""

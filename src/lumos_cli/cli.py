@@ -2608,19 +2608,27 @@ def interactive_mode():
             elif detected_command['type'] == 'appdynamics':
                 _interactive_appdynamics(detected_command['query'])
             elif detected_command['type'] == 'code':
+                # Check if this was routed from a legacy intent
+                if 'original_intent' in detected_command:
+                    _show_legacy_intent_warning(detected_command['original_intent'])
                 _interactive_code(detected_command['query'])
             elif detected_command['type'] == 'workflow':
                 _interactive_workflow(detected_command['query'], detected_command)
+            # Legacy intents - these should now be routed to 'code' above
             elif detected_command['type'] == 'edit':
-                _interactive_edit(detected_command['instruction'], detected_command.get('file'))
+                _show_legacy_intent_warning('edit')
+                _interactive_code(f"edit {detected_command.get('instruction', detected_command.get('query', ''))}")
             elif detected_command['type'] == 'plan':
-                _interactive_plan(detected_command['instruction'])
+                _show_legacy_intent_warning('plan')
+                _interactive_code(f"plan {detected_command.get('instruction', detected_command.get('query', ''))}")
             elif detected_command['type'] == 'review':
-                _interactive_review(detected_command.get('file', ''))
+                _show_legacy_intent_warning('review')
+                _interactive_code(f"review {detected_command.get('file', detected_command.get('query', ''))}")
             elif detected_command['type'] == 'start':
                 _interactive_start(detected_command['instruction'])
             elif detected_command['type'] == 'fix':
-                _interactive_fix(detected_command['instruction'])
+                _show_legacy_intent_warning('fix')
+                _interactive_code(f"fix {detected_command.get('instruction', detected_command.get('query', ''))}")
             elif detected_command['type'] == 'shell':
                 _interactive_shell(detected_command['command'])
             else:
@@ -3033,6 +3041,12 @@ def _interactive_code(query: str):
         console.print(f"[red]❌ Code operation failed: {str(e)}[/red]")
         debug_logger.error(f"Code operation failed: {e}")
 
+def _show_legacy_intent_warning(legacy_intent: str):
+    """Show warning for legacy intent usage"""
+    console.print(f"\n[yellow]⚠️  Legacy Command Warning:[/yellow]")
+    console.print(f"[dim]The /{legacy_intent} command is deprecated. Use /code {legacy_intent} instead.[/dim]")
+    console.print(f"[dim]Example: /code {legacy_intent} <your_query>[/dim]\n")
+
 def _show_code_help():
     """Show code command help"""
     console.print("""
@@ -3041,6 +3055,9 @@ def _show_code_help():
 [bold]Available Actions:[/bold]
   generate <spec> [file] [lang]  - Generate new code from specification
   edit <instruction> [file]      - Edit existing code
+  plan <goal>                    - Create implementation plans
+  review <file>                  - Review code for improvements
+  fix <issue>                    - Fix bugs and issues
   test [generate|run] [file]     - Generate or run tests
   analyze <file>                 - Analyze code quality and complexity
   refactor <file> [type]         - Refactor code for better quality
@@ -3051,6 +3068,9 @@ def _show_code_help():
 [bold]Examples:[/bold]
   /code generate "create a REST API endpoint" api.py python
   /code edit "add error handling" app.py
+  /code plan "implement user authentication"
+  /code review app.py
+  /code fix "memory leak in payment processing"
   /code test generate app.py unit
   /code test run
   /code analyze app.py
@@ -3058,6 +3078,9 @@ def _show_code_help():
   /code docs app.py api
   /code format app.py
   /code validate app.py
+
+[bold]Legacy Commands (Deprecated):[/bold]
+  /edit, /plan, /review, /fix → Use /code <action> instead
 
 [bold]Supported Languages:[/bold]
   Python, JavaScript, TypeScript, Go, Java, C++, C#, PHP, Ruby, Rust
@@ -3069,11 +3092,8 @@ def _show_interactive_help():
 [bold cyan]🔧 Lumos Interactive Commands[/bold cyan]
 
 [bold]Direct Commands:[/bold]
-  /edit <instruction>    - Edit files with smart discovery
-  /plan <goal>          - Create implementation plan
-  /review <file>        - Review code for improvements
+  /code <action>        - Comprehensive code operations (generate, edit, plan, review, fix, test, analyze, refactor, docs, format, validate)
   /start [command]      - Start app with error handling
-  /fix [error]          - Analyze and fix errors
   /sessions             - List chat sessions
 
 [bold]Explicit Intent Prefixes:[/bold]

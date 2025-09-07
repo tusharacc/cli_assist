@@ -101,6 +101,7 @@ class EnterpriseLLMReplica:
                 return True
             
             self.console.print("[cyan]🔑 Simulating OAuth2 access token for Enterprise LLM...[/cyan]")
+            self.console.print("[dim]   (Using OpenAI GPT-4 to simulate enterprise responses)[/dim]")
             
             # Simulate OAuth2 token generation
             # In real enterprise, this would call the actual token endpoint
@@ -108,12 +109,13 @@ class EnterpriseLLMReplica:
             self.config.access_token = f"simulated_enterprise_token_{int(time.time())}"
             self.config.token_expires_at = time.time() + 3600  # 1 hour simulation
             
-            self.console.print("[green]✅ Simulated access token generated successfully[/green]")
+            self.console.print("[green]✅ Enterprise LLM simulation ready (using OpenAI GPT-4)[/green]")
             debug_logger.log_function_call("EnterpriseLLMReplica._get_access_token", {
                 "simulated": True,
                 "token_url": self.config.token_url,
                 "app_id": self.config.app_id,
-                "expires_in": 3600
+                "expires_in": 3600,
+                "note": "Using OpenAI GPT-4 to simulate enterprise responses"
             })
             return True
                 
@@ -143,11 +145,11 @@ class EnterpriseLLMReplica:
             return f"Error generating response: {str(e)}"
     
     def _call_enterprise_api(self, prompt: str, max_tokens: int = None, temperature: float = None) -> str:
-        """Simulate enterprise API by calling OpenAI GPT-4"""
+        """Call OpenAI GPT-4 to simulate enterprise LLM responses"""
         try:
-            self.console.print("[cyan]🏢 Simulating Enterprise LLM with OpenAI GPT-4...[/cyan]")
+            self.console.print("[cyan]🏢 Using OpenAI GPT-4 for Enterprise LLM simulation...[/cyan]")
             
-            # Simulate enterprise API by calling OpenAI GPT-4
+            # Use OpenAI API with GPT-4 to simulate enterprise LLM
             import openai
             
             # Check if OpenAI is available
@@ -166,10 +168,11 @@ class EnterpriseLLMReplica:
             )
             
             debug_logger.log_function_call("EnterpriseLLMReplica._call_enterprise_api", {
-                "simulated_enterprise": True,
+                "enterprise_simulation": True,
                 "openai_model": "gpt-4",
                 "prompt_length": len(prompt),
-                "max_tokens": max_tokens or self.config.max_tokens
+                "max_tokens": max_tokens or self.config.max_tokens,
+                "note": "Using real OpenAI GPT-4 to simulate enterprise responses"
             })
             
             return response.choices[0].message.content
@@ -321,11 +324,11 @@ class EnterpriseLLMReplica:
             return f"Error in chat: {str(e)}"
     
     def _call_enterprise_chat(self, messages: List[Dict[str, str]]) -> str:
-        """Simulate enterprise chat API by calling OpenAI GPT-4"""
+        """Call OpenAI GPT-4 to simulate enterprise chat responses"""
         try:
-            self.console.print("[cyan]🏢 Simulating Enterprise LLM Chat with OpenAI GPT-4...[/cyan]")
+            self.console.print("[cyan]🏢 Using OpenAI GPT-4 for Enterprise LLM chat simulation...[/cyan]")
             
-            # Simulate enterprise chat API by calling OpenAI GPT-4
+            # Use OpenAI API with GPT-4 to simulate enterprise chat
             import openai
             
             # Check if OpenAI is available
@@ -344,9 +347,10 @@ class EnterpriseLLMReplica:
             )
             
             debug_logger.log_function_call("EnterpriseLLMReplica._call_enterprise_chat", {
-                "simulated_enterprise": True,
+                "enterprise_simulation": True,
                 "openai_model": "gpt-4",
-                "message_count": len(messages)
+                "message_count": len(messages),
+                "note": "Using real OpenAI GPT-4 to simulate enterprise chat responses"
             })
             
             return response.choices[0].message.content

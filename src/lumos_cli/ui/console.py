@@ -3,6 +3,7 @@ Console utilities for Lumos CLI
 """
 
 import os
+import platform
 from rich.console import Console
 from rich.panel import Panel
 from rich.columns import Columns
@@ -13,6 +14,18 @@ from typing import Optional
 
 # Global console instance
 console = Console()
+
+def clear_console():
+    """Clear the console screen in a cross-platform way"""
+    try:
+        # Use Rich's built-in clear method first
+        console.clear()
+    except Exception:
+        # Fallback to system-specific clear commands
+        if platform.system() == "Windows":
+            os.system('cls')
+        else:
+            os.system('clear')
 
 def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = None, show_status: bool = True) -> None:
     """Create a beautiful header panel for Lumos CLI"""

@@ -7,7 +7,7 @@ import re
 from rich.console import Console
 from ..core import LLMRouter, EmbeddingDB, HistoryManager
 from ..core.persona_manager import PersonaManager
-from ..ui import console, show_footer, display_claude_style_prompt
+from ..ui import console, show_footer, display_claude_style_prompt, clear_console
 from .intent_detection import detect_intent
 from .handlers import (
     interactive_github, interactive_jenkins, interactive_jira,
@@ -16,6 +16,9 @@ from .handlers import (
 
 def interactive_mode():
     """Enhanced interactive mode with command detection"""
+    # Clear the console for a clean start
+    clear_console()
+    
     # Initialize components
     router = LLMRouter()
     db = EmbeddingDB()

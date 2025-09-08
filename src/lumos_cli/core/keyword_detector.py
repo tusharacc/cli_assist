@@ -266,30 +266,36 @@ User Query: "{query}"
 
 Return a JSON response with the following structure:
 {{
-    "action": "dependencies|impact|relationships|query|unknown",
+    "action": "list_repositories|stats|dependencies|impact|relationships|query|unknown",
     "confidence": 0.0-1.0,
     "extracted_values": {{
         "class_name": "ClassName",
         "method_name": "methodName",
         "query_type": "dependencies|impact|relationships",
-        "depth": number
+        "depth": number,
+        "query": "Cypher query if custom query"
     }},
     "reasoning": "Brief explanation of the analysis"
 }}
 
 Rules:
-1. For dependencies: action="dependencies", extract class_name, method_name, depth
-2. For impact: action="impact", extract class_name, method_name, depth
-3. For relationships: action="relationships", extract class_name, method_name
-4. For query: action="query", extract class_name, method_name
-5. Extract class names (PascalCase) and method names (camelCase/snake_case)
-6. Extract depth from "2 levels", "depth 3", etc.
-7. Set confidence based on clarity of the query
+1. For list repositories: action="list_repositories" when user wants to see all repositories
+2. For stats: action="stats" when user wants statistics or overview
+3. For dependencies: action="dependencies", extract class_name, method_name, depth
+4. For impact: action="impact", extract class_name, method_name, depth
+5. For relationships: action="relationships", extract class_name, method_name
+6. For custom query: action="query", extract the Cypher query
+7. Extract class names (PascalCase) and method names (camelCase/snake_case)
+8. Extract depth from "2 levels", "depth 3", etc.
+9. Set confidence based on clarity of the query
 
 Examples:
+- "list all repositories" → {{"action": "list_repositories", "confidence": 0.9, "extracted_values": {{}}}}
+- "show repository statistics" → {{"action": "stats", "confidence": 0.9, "extracted_values": {{}}}}
 - "dependencies of class UserService" → {{"action": "dependencies", "confidence": 0.9, "extracted_values": {{"class_name": "UserService"}}}}
 - "impact analysis for method validateUser" → {{"action": "impact", "confidence": 0.9, "extracted_values": {{"method_name": "validateUser"}}}}
 - "relationships for PaymentController" → {{"action": "relationships", "confidence": 0.8, "extracted_values": {{"class_name": "PaymentController"}}}}
+- "MATCH (n) RETURN n LIMIT 10" → {{"action": "query", "confidence": 0.9, "extracted_values": {{"query": "MATCH (n) RETURN n LIMIT 10"}}}}
 
 Return ONLY the JSON response, no other text."""
         

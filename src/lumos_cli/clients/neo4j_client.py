@@ -436,3 +436,84 @@ class Neo4jClient:
             debug_logger.error(f"Failed to clear repository data: {e}")
             debug_logger.log_function_return("Neo4jClient.clear_repository_data", "Failed")
             return False
+    
+    def execute_query(self, query: str, parameters: Dict = None) -> List[Dict]:
+        """Execute a Cypher query and return results"""
+        debug_logger.log_function_call("Neo4jClient.execute_query", kwargs={
+            "query": query[:100] + "..." if len(query) > 100 else query,
+            "parameters": parameters
+        })
+        
+        if not self.driver:
+            debug_logger.error("No database connection")
+            debug_logger.log_function_return("Neo4jClient.execute_query", "No connection")
+            return []
+        
+        try:
+            with self.driver.session() as session:
+                result = session.run(query, parameters or {})
+                records = []
+                for record in result:
+                    # Convert Neo4j record to dictionary
+                    record_dict = {}
+                    for key in record.keys():
+                        value = record[key]
+                        # Convert Neo4j node/relationship objects to dictionaries
+                        if hasattr(value, 'items'):
+                            record_dict[key] = dict(value.items())
+                        else:
+                            record_dict[key] = value
+                    records.append(record_dict)
+                
+                debug_logger.log_function_return("Neo4jClient.execute_query", f"Returned {len(records)} records")
+                return records
+                
+        except Exception as e:
+            debug_logger.error(f"Failed to execute query: {e}")
+            debug_logger.log_function_return("Neo4jClient.execute_query", "Failed")
+            return []
+    
+    def list_all_repositories(self) -> List[Dict]:
+        """List all repositories in the graph"""
+        debug_logger.log_function_call("Neo4jClient.list_all_repositories")
+        
+        query = """
+        MATCH (r:Repository)
+        RETURN r.organization as organization, 
+               r.name as name, 
+               r.url as url,
+               r.created_at as created_at,
+               r.updated_at as updated_at
+        ORDER BY r.organization, r.name
+        """
+        
+        result = self.execute_query(query)
+        debug_logger.log_function_return("Neo4jClient.list_all_repositories", f"Found {len(result)} repositories")
+        return result
+    
+    def get_repository_stats(self) -> Dict:
+        """Get overall statistics about the graph"""
+        debug_logger.log_function_call("Neo4jClient.get_repository_stats")
+        
+        stats_query = """
+        MATCH (r:Repository)
+        WITH count(r) as repo_count
+        MATCH (c:Class)
+        WITH repo_count, count(c) as class_count
+        MATCH (m:Method)
+        WITH repo_count, class_count, count(m) as method_count
+        MATCH (f:File)
+        WITH repo_count, class_count, method_count, count(f) as file_count
+        MATCH ()-[rel]->()
+        WITH repo_count, class_count, method_count, file_count, count(rel) as relationship_count
+        RETURN repo_count, class_count, method_count, file_count, relationship_count
+        """
+        
+        result = self.execute_query(stats_query)
+        if result:
+            stats = result[0]
+            debug_logger.log_function_return("Neo4jClient.get_repository_stats", f"Stats: {stats}")
+            return stats
+        else:
+            debug_logger.log_function_return("Neo4jClient.get_repository_stats", "No stats found")
+            return {}

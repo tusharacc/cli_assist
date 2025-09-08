@@ -10,6 +10,7 @@ from .persona_manager import PersonaManager
 from .code_manager import CodeManager
 from .workflow_handler import WorkflowHandler
 from .intent_detector import IntentDetector
+from .keyword_detector import UnifiedKeywordDetector, KeywordDetectionResult, keyword_detector
 
 __all__ = [
     'LLMRouter',
@@ -20,5 +21,8 @@ __all__ = [
     'PersonaManager',
     'CodeManager',
     'WorkflowHandler',
-    'IntentDetector'
+    'IntentDetector',
+    'UnifiedKeywordDetector',
+    'KeywordDetectionResult',
+    'keyword_detector'
 ]

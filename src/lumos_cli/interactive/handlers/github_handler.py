@@ -7,6 +7,7 @@ from rich.console import Console
 from ...utils.github_query_parser import GitHubQueryParser
 from ...clients.github_client import GitHubClient
 from ...utils.debug_logger import debug_logger
+from ...core.keyword_detector import keyword_detector
 
 console = Console()
 
@@ -33,74 +34,52 @@ def interactive_github(query: str):
         if agreement:
             console.print("[dim]✓ Text and LLM parsing agreed[/dim]")
         
-        # Determine action based on keywords
-        lower_query = query.lower()
-        words = query.split()
+        # Use LLM-based keyword detection
+        detection_result = keyword_detector.detect_keywords('github', query)
         
-        # Check for commit-related queries first (higher priority)
-        if any(keyword in lower_query for keyword in ['commit', 'commits']):
+        # Show detection confidence for debugging
+        if detection_result.confidence < 0.7:
+            console.print(f"[dim]LLM detection confidence: {detection_result.confidence:.2f}[/dim]")
+        
+        # Handle the detected action
+        action = detection_result.action
+        extracted_values = detection_result.extracted_values
+        
+        if action == 'commits':
             # Handle commit-related queries
-            # Check for specific commit SHA (7+ character hex string)
-            sha_pattern = r'\b([a-f0-9]{7,40})\b'
-            sha_match = re.search(sha_pattern, query)
+            count = extracted_values.get('count', 5)
+            branch = extracted_values.get('branch')
+            commit_sha = extracted_values.get('commit_sha')
             
-            if sha_match:
-                # Specific commit SHA requested
-                commit_sha = sha_match.group(1)
+            if commit_sha:
                 console.print(f"[cyan]🔍 Getting detailed commit analysis for {commit_sha} from {org_repo}...[/cyan]")
                 _github_commits(org_repo, commit_sha=commit_sha)
-            elif any(keyword in lower_query for keyword in ['latest', 'last', 'recent']):
-                # Extract count if specified
-                count = 1
-                for word in words:
-                    if word.isdigit():
-                        count = int(word)
-                        break
-                
-                if count == 1:
-                    console.print(f"[cyan]🔍 Getting latest commit from {org_repo}...[/cyan]")
-                    _github_commits(org_repo, latest=True)
-                else:
-                    console.print(f"[cyan]🔍 Getting last {count} commits from {org_repo}...[/cyan]")
-                    _github_commits(org_repo, count=count)
+            elif count == 1:
+                console.print(f"[cyan]🔍 Getting latest commit from {org_repo}...[/cyan]")
+                _github_commits(org_repo, latest=True)
             else:
-                # Default to showing last 5 commits
-                console.print(f"[cyan]🔍 Getting last 5 commits from {org_repo}...[/cyan]")
-                _github_commits(org_repo, count=5)
+                console.print(f"[cyan]🔍 Getting last {count} commits from {org_repo}...[/cyan]")
+                _github_commits(org_repo, count=count)
                 
-        elif any(keyword in lower_query for keyword in ['pr', 'pull request', 'pullrequest']):
-            if any(keyword in lower_query for keyword in ['branch', 'rc1', 'main', 'develop']):
-                # Extract branch name
-                branch = None
-                for word in words:
-                    if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
-                        branch = word
-                        break
-                
-                if branch:
-                    console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org_repo}...[/cyan]")
-                    _github_pr(org_repo, branch=branch)
-                else:
-                    console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
-                    _github_pr(org_repo, list_all=True)
+        elif action == 'pr':
+            # Handle PR-related queries
+            branch = extracted_values.get('branch')
+            
+            if branch:
+                console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org_repo}...[/cyan]")
+                _github_pr(org_repo, branch=branch)
             else:
                 console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
                 _github_pr(org_repo, list_all=True)
                 
-        elif any(keyword in lower_query for keyword in ['clone', 'pull', 'download', 'fetch']) and 'commit' not in lower_query:
-            # Only trigger clone if 'commit' is not in the query (to avoid conflicts with "fetch commits")
-            # Extract branch if specified
-            branch = None
-            for word in words:
-                if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
-                    branch = word
-                    break
-            
+        elif action == 'clone':
+            # Handle clone-related queries
+            branch = extracted_values.get('branch')
             console.print(f"[cyan]🔍 Cloning {org_repo}...[/cyan]")
             _github_clone(org_repo, branch=branch)
             
         else:
-            # Default to listing PRs
+            # Default to listing PRs for unknown actions
             console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
             _github_pr(org_repo, list_all=True)
             

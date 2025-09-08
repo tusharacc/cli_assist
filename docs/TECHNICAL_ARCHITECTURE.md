@@ -98,7 +98,8 @@ src/lumos_cli/
 │   ├── persona_manager.py         # User persona management
 │   ├── code_manager.py            # Code generation and management
 │   ├── workflow_handler.py        # Multi-step workflow orchestration
-│   └── intent_detector.py         # Intent detection and classification
+│   ├── intent_detector.py         # Intent detection and classification
+│   └── keyword_detector.py        # Unified LLM-based keyword detection
 ├── clients/                        # External service clients
 │   ├── __init__.py                # Client module exports
 │   ├── github_client.py           # GitHub API integration
@@ -232,7 +233,21 @@ src/lumos_cli/
 
 **Features**: Multi-language support, syntax validation, formatting
 
-### 7. Workflow Handler (`core/workflow_handler.py`)
+### 7. Keyword Detector (`core/keyword_detector.py`)
+**Purpose**: Unified LLM-based keyword detection for all integrations
+
+**Key Functions**:
+- `UnifiedKeywordDetector`: Central keyword detection system
+- `IntegrationKeywordDetector`: Base class for integration-specific detectors
+- `GitHubKeywordDetector`: GitHub-specific keyword detection
+- `JenkinsKeywordDetector`: Jenkins-specific keyword detection
+- `JiraKeywordDetector`: Jira-specific keyword detection
+- `Neo4jKeywordDetector`: Neo4j-specific keyword detection
+- `AppDynamicsKeywordDetector`: AppDynamics-specific keyword detection
+
+**Features**: LLM-based natural language processing, integration-specific prompts, confidence scoring
+
+### 8. Workflow Handler (`core/workflow_handler.py`)
 **Purpose**: Multi-step workflow orchestration
 
 **Key Functions**:
@@ -288,17 +303,21 @@ src/lumos_cli/
 **API Version**: REST API latest
 
 ### 4. Neo4j Client (`clients/neo4j_client.py`)
-**Purpose**: Neo4j graph database integration
+**Purpose**: Neo4j graph database integration with LLM-generated queries
 
 **Key Functions**:
 - `Neo4jClient`: Main Neo4j client class
 - `execute_query()`: Executes Cypher queries
-- `get_schema()`: Retrieves database schema
+- `get_schema_info()`: Retrieves comprehensive database schema
+- `generate_cypher_query()`: LLM-based query generation
+- `execute_llm_generated_query()`: End-to-end LLM query execution
+- `list_all_repositories()`: Lists all repositories in graph
+- `get_repository_stats()`: Gets repository statistics
 - `analyze_dependencies()`: Analyzes code dependencies
-- `visualize_graph()`: Creates graph visualizations
+- `find_impact_analysis()`: Performs impact analysis
 
 **Authentication**: Username/password, LDAP
-**Features**: Graph analysis, dependency mapping, schema introspection
+**Features**: Graph analysis, dependency mapping, schema introspection, LLM query generation
 
 ### 5. AppDynamics Client (`clients/appdynamics_client.py`)
 **Purpose**: AppDynamics application performance monitoring

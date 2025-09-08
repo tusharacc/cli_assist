@@ -25,6 +25,7 @@ Welcome to the Lumos CLI documentation! This index helps you find the informatio
 |----------|-------------|
 | [GitHub Integration](GITHUB_INTEGRATION.md) | GitHub API integration, PR management, commit analysis |
 | [Jenkins Integration](JENKINS_INTEGRATION.md) | Jenkins build monitoring, failure analysis, job management |
+| [Neo4j Integration](NEO4J_INTEGRATION.md) | Graph database analysis with LLM-generated Cypher queries |
 | [AppDynamics Integration](APPDYNAMICS_TEST_README.md) | Application performance monitoring and alerting |
 
 ## 🧠 AI & Intelligence
@@ -55,14 +56,16 @@ Welcome to the Lumos CLI documentation! This index helps you find the informatio
 - **Testing**: Follow [Testing Guide](TESTING_GUIDE.md)
 - **GitHub Integration**: See [GitHub Integration](GITHUB_INTEGRATION.md)
 - **Jenkins Monitoring**: Read [Jenkins Integration](JENKINS_INTEGRATION.md)
+- **Neo4j Graph Analysis**: Follow [Neo4j Integration](NEO4J_INTEGRATION.md)
 - **AppDynamics Setup**: Follow [AppDynamics Integration](APPDYNAMICS_TEST_README.md)
 - **Troubleshooting**: Use [Comprehensive Debugging Guide](COMPREHENSIVE_DEBUGGING_GUIDE.md)
 - **Development**: Review [Refactoring Plan](REFACTORING_PLAN.md)
 
 ### By Role
-- **Developer**: Essential Features, Technical Architecture, Module Functionality, GitHub Integration, Code Editing Analysis
-- **SRE**: Jenkins Integration, AppDynamics Integration, Debugging Guide, System Flow Diagrams
+- **Developer**: Essential Features, Technical Architecture, Module Functionality, GitHub Integration, Neo4j Integration, Code Editing Analysis
+- **SRE**: Jenkins Integration, Neo4j Integration, AppDynamics Integration, Debugging Guide, System Flow Diagrams
 - **DevOps**: All integration guides, Shell Execution Demo, Testing Guide
+- **Data Engineer**: Neo4j Integration, Technical Architecture, Module Functionality
 - **Contributor**: Technical Architecture, Module Functionality, Refactoring Plan, Agentic Architecture, Intent Consolidation Plan
 - **Architect**: Technical Architecture, System Flow Diagrams, Module Functionality, Agentic Architecture
 

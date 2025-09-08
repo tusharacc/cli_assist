@@ -5,9 +5,11 @@
 ### 🤖 **Core AI Features**
 - ✅ **Smart LLM Routing** - Auto-selects best model for each task
 - ✅ **Fallback System** - Works with Ollama OR REST API
+- ✅ **Unified Keyword Detection** - LLM-based natural language processing for all integrations
 - ✅ **Repository Analysis** - Understands project context automatically
 - ✅ **Smart File Discovery** - Find files with natural language
-- ✅ **Interactive Mode** - Claude Code-like experience
+- ✅ **Interactive Mode** - Claude Code-like experience with console clearing
+- ✅ **Enterprise LLM Integration** - Advanced LLM capabilities for complex operations
 
 ### 🛡️ **Safety & Reliability** 
 - ✅ **Diff Previews** - See changes before applying
@@ -24,11 +26,12 @@
 - ✅ **Persistent History** - Remembers conversations per repository
 
 ### 🔧 **Developer Experience**
-- ✅ **Interactive Mode** - `lumos-cli` opens chat interface
+- ✅ **Interactive Mode** - `lumos-cli` opens chat interface with clean console
 - ✅ **Command Mode** - Traditional CLI commands
-- ✅ **Natural Language** - "add error handling", "start the server"
+- ✅ **Natural Language** - "add error handling", "start the server", "find dependencies"
 - ✅ **Configuration Management** - Setup wizard and config display
 - ✅ **Rich UI** - Beautiful tables, colors, progress indicators
+- ✅ **Detailed Commit Analysis** - Rich commit details with file changes and code analysis
 
 ## 🎯 **Ready-to-Use Commands**
 
@@ -50,6 +53,8 @@ lumos-cli
 lumos-cli                           # Start chat interface
 lumos-cli "add error handling"      # Smart file discovery + edit
 lumos-cli "plan user authentication" # Architecture planning
+lumos-cli "find all classes that depend on UserService" # Neo4j analysis
+lumos-cli "show me the last 5 commits from scimarketplace/quote" # GitHub analysis
 
 # Direct Commands  
 lumos-cli edit "add logging" --path app.py
@@ -57,6 +62,11 @@ lumos-cli start "python app.py"    # Launch with error monitoring
 lumos-cli fix "ModuleNotFoundError" # Intelligent error analysis
 lumos-cli review src/api.py         # Code review
 lumos-cli config-show              # Show configuration
+
+# Integration Commands
+lumos-cli github-pr microsoft vscode    # GitHub operations
+lumos-cli jenkins-failed-jobs 4         # Jenkins monitoring
+lumos-cli neo4j list-repositories       # Neo4j operations
 ```
 
 ## 🔧 **Configuration Options**

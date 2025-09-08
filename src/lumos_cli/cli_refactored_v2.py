@@ -20,6 +20,10 @@ from .commands import (
     jenkins_config as jenkins_config_impl
 )
 
+# Import config managers for interactive setup
+from .config.github_config_manager import GitHubConfigManager
+from .config.jenkins_config_manager import JenkinsConfigManager
+
 # Import interactive mode
 from .interactive import interactive_mode
 
@@ -113,8 +117,21 @@ def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all
 
 @app.command()
 def github_config():
-    """Configure GitHub integration"""
+    """View GitHub integration configuration status"""
     github_config_impl()
+
+@app.command("github")
+def github_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive GitHub configuration"""
+    if action == "config":
+        config_manager = GitHubConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli github config[/yellow]")
 
 # Jenkins commands
 @app.command()
@@ -144,8 +161,21 @@ def jenkins_analyze_failure(folder: str, job_name: str, build_number: int):
 
 @app.command()
 def jenkins_config():
-    """Configure Jenkins integration"""
+    """View Jenkins integration configuration status"""
     jenkins_config_impl()
+
+@app.command("jenkins")
+def jenkins_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive Jenkins configuration"""
+    if action == "config":
+        config_manager = JenkinsConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli jenkins config[/yellow]")
 
 # Utility commands
 @app.command()

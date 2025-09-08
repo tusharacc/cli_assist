@@ -125,8 +125,8 @@ def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all
         console.print(f"[red]GitHub PR error: {e}[/red]")
 
 def github_config():
-    """Configure GitHub integration settings"""
-    console.print("[bold cyan]🔧 GitHub Configuration[/bold cyan]")
+    """View GitHub integration configuration status"""
+    console.print("[bold cyan]🔍 GitHub Configuration Status[/bold cyan]")
     
     # Check current token
     token = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT")
@@ -142,7 +142,9 @@ def github_config():
             console.print("[red]❌ GitHub connection failed[/red]")
     else:
         console.print("[yellow]⚠️  GITHUB_TOKEN not set[/yellow]")
-        console.print("\n[bold]To configure GitHub integration:[/bold]")
+        console.print("\n[bold]To set up GitHub integration interactively:[/bold]")
+        console.print("   [cyan]lumos-cli github config[/cyan]")
+        console.print("\n[bold]Or set manually:[/bold]")
         console.print("1. Go to GitHub → Settings → Developer settings → Personal access tokens")
         console.print("2. Generate a new token with 'repo' scope")
         console.print("3. Set the token:")

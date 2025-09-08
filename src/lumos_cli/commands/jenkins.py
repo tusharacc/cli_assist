@@ -2,6 +2,7 @@
 Jenkins integration commands for Lumos CLI
 """
 
+import os
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -175,8 +176,8 @@ def jenkins_analyze_failure(job_path: str, build_number: int):
         console.print(f"[red]Jenkins analyze failure error: {e}[/red]")
 
 def jenkins_config():
-    """Configure Jenkins integration settings"""
-    console.print("[bold cyan]🔧 Jenkins Configuration[/bold cyan]")
+    """View Jenkins integration configuration status"""
+    console.print("[bold cyan]🔍 Jenkins Configuration Status[/bold cyan]")
     
     # Check current configuration
     jenkins_url = os.getenv("JENKINS_URL")
@@ -212,7 +213,9 @@ def jenkins_config():
         except Exception as e:
             console.print(f"[red]❌ Jenkins connection error: {e}[/red]")
     else:
-        console.print("\n[bold]To configure Jenkins integration:[/bold]")
+        console.print("\n[bold]To set up Jenkins integration interactively:[/bold]")
+        console.print("   [cyan]lumos-cli jenkins config[/cyan]")
+        console.print("\n[bold]Or set manually:[/bold]")
         console.print("1. Get your Jenkins API token from User → Configure → API Token")
         console.print("2. Set the environment variables:")
         console.print("   [dim]export JENKINS_URL=https://your-jenkins.com[/dim]")

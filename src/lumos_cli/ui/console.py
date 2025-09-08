@@ -30,7 +30,10 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
     status_content = ""
     if show_status:
         def get_service_status():
-            """Get actual service availability status based on configuration"""
+            """Get actual service availability status based on global configuration"""
+            import json
+            from ..utils.platform_utils import get_config_directory
+            
             # First try to load environment variables from .env file
             try:
                 from ..config import load_env_file
@@ -39,36 +42,104 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                 pass  # Continue without .env file loading
             
             status_map = {}
+            config_dir = get_config_directory()  # Usually ~/Library/Application Support/Lumos
+            alt_config_dir = os.path.expanduser("~/.lumos")  # Alternative config location
             
             # Check LLM Models
             # Ollama - check if installed and running
             from ..utils.platform_utils import check_ollama_installed
             status_map['ollama'] = '🟢' if check_ollama_installed() else '🔴'
             
-            # OpenAI - check for API key
+            # OpenAI - check for API key (environment variables)
             openai_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
             status_map['openai'] = '🟢' if openai_key else '🔴'
             
-            # Enterprise LLM - check actual configuration
-            try:
-                from ..config import config
-                enterprise_configured = config.is_enterprise_configured() if hasattr(config, 'is_enterprise_configured') else False
-            except:
-                # Fallback: check environment variables directly
-                required_vars = [
-                    'ENTERPRISE_TOKEN_URL', 'ENTERPRISE_CHAT_URL', 'ENTERPRISE_APP_ID',
-                    'ENTERPRISE_APP_KEY', 'ENTERPRISE_APP_RESOURCE'
-                ]
-                enterprise_configured = all(os.getenv(var) for var in required_vars)
-            
+            # Enterprise LLM - check config file (try both locations)
+            enterprise_config_file = os.path.join(alt_config_dir, "enterprise_llm_config.json")  # ~/.lumos/
+            if not os.path.exists(enterprise_config_file):
+                enterprise_config_file = os.path.join(config_dir, "enterprise_llm_config.json")  # App Support
+                
+            enterprise_configured = False
+            if os.path.exists(enterprise_config_file):
+                try:
+                    with open(enterprise_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        # Check if all required fields are present and non-empty
+                        required_fields = ['token_url', 'chat_url', 'app_id', 'app_key', 'app_resource']
+                        enterprise_configured = all(config_data.get(field, '').strip() for field in required_fields)
+                except:
+                    pass
             status_map['enterprise'] = '🟢' if enterprise_configured else '🔴'
             
-            # Check Services (simplified for now, can be enhanced)
-            status_map['github'] = '🟢' if os.getenv("GITHUB_TOKEN") else '🟡'
-            status_map['jenkins'] = '🟢' if os.getenv("JENKINS_URL") and os.getenv("JENKINS_TOKEN") else '🔴'
-            status_map['jira'] = '🟢' if os.getenv("JIRA_URL") and os.getenv("JIRA_TOKEN") else '🔴'
-            status_map['neo4j'] = '🟢' if os.getenv("NEO4J_URI") and os.getenv("NEO4J_USER") else '🔴'
-            status_map['appdynamics'] = '🟢' if os.getenv("APPDYNAMICS_CONTROLLER_URL") else '🔴'
+            # Check Services using their config files
+            # GitHub - check config file
+            github_config_file = os.path.join(config_dir, "github_config.json")
+            github_configured = False
+            if os.path.exists(github_config_file):
+                try:
+                    with open(github_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        github_configured = bool(config_data.get('token', '').strip())
+                except:
+                    pass
+            # Fallback to environment variable
+            if not github_configured:
+                github_configured = bool(os.getenv("GITHUB_TOKEN"))
+            status_map['github'] = '🟢' if github_configured else '🟡'
+            
+            # Jenkins - check config file  
+            jenkins_config_file = os.path.join(config_dir, "jenkins_config.json")
+            jenkins_configured = False
+            if os.path.exists(jenkins_config_file):
+                try:
+                    with open(jenkins_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        jenkins_configured = bool(config_data.get('url', '').strip() and config_data.get('token', '').strip())
+                except:
+                    pass
+            status_map['jenkins'] = '🟢' if jenkins_configured else '🔴'
+            
+            # Jira - check config file (try both locations)
+            jira_config_file = os.path.join(config_dir, "jira_config.json")  # App Support first
+            if not os.path.exists(jira_config_file):
+                jira_config_file = os.path.join(alt_config_dir, "jira_config.json")  # ~/.lumos/
+                
+            jira_configured = False
+            if os.path.exists(jira_config_file):
+                try:
+                    with open(jira_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        jira_configured = bool(config_data.get('url', '').strip() and config_data.get('token', '').strip())
+                except:
+                    pass
+            status_map['jira'] = '🟢' if jira_configured else '🔴'
+            
+            # Neo4j - check config file (try both locations)
+            neo4j_config_file = os.path.join(alt_config_dir, "neo4j_config.json")  # ~/.lumos/
+            if not os.path.exists(neo4j_config_file):
+                neo4j_config_file = os.path.join(config_dir, "neo4j_config.json")  # App Support
+                
+            neo4j_configured = False
+            if os.path.exists(neo4j_config_file):
+                try:
+                    with open(neo4j_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        neo4j_configured = bool(config_data.get('uri', '').strip() and config_data.get('username', '').strip())
+                except:
+                    pass
+            status_map['neo4j'] = '🟢' if neo4j_configured else '🔴'
+            
+            # AppDynamics - check config file
+            appdynamics_config_file = os.path.join(config_dir, "appdynamics_config.json")
+            appdynamics_configured = False
+            if os.path.exists(appdynamics_config_file):
+                try:
+                    with open(appdynamics_config_file, 'r') as f:
+                        config_data = json.load(f)
+                        appdynamics_configured = bool(config_data.get('controller_url', '').strip())
+                except:
+                    pass
+            status_map['appdynamics'] = '🟢' if appdynamics_configured else '🔴'
             
             return status_map
         

@@ -37,37 +37,8 @@ def interactive_github(query: str):
         lower_query = query.lower()
         words = query.split()
         
-        if any(keyword in lower_query for keyword in ['pr', 'pull request', 'pullrequest']):
-            if any(keyword in lower_query for keyword in ['branch', 'rc1', 'main', 'develop']):
-                # Extract branch name
-                branch = None
-                for word in words:
-                    if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
-                        branch = word
-                        break
-                
-                if branch:
-                    console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org_repo}...[/cyan]")
-                    _github_pr(org_repo, branch=branch)
-                else:
-                    console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
-                    _github_pr(org_repo, list_all=True)
-            else:
-                console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
-                _github_pr(org_repo, list_all=True)
-                
-        elif any(keyword in lower_query for keyword in ['clone', 'pull', 'fetch', 'download']):
-            # Extract branch if specified
-            branch = None
-            for word in words:
-                if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
-                    branch = word
-                    break
-            
-            console.print(f"[cyan]🔍 Cloning {org_repo}...[/cyan]")
-            _github_clone(org_repo, branch=branch)
-            
-        elif any(keyword in lower_query for keyword in ['commit', 'commits']):
+        # Check for commit-related queries first (higher priority)
+        if any(keyword in lower_query for keyword in ['commit', 'commits']):
             # Handle commit-related queries
             # Check for specific commit SHA (7+ character hex string)
             sha_pattern = r'\b([a-f0-9]{7,40})\b'
@@ -96,6 +67,37 @@ def interactive_github(query: str):
                 # Default to showing last 5 commits
                 console.print(f"[cyan]🔍 Getting last 5 commits from {org_repo}...[/cyan]")
                 _github_commits(org_repo, count=5)
+                
+        elif any(keyword in lower_query for keyword in ['pr', 'pull request', 'pullrequest']):
+            if any(keyword in lower_query for keyword in ['branch', 'rc1', 'main', 'develop']):
+                # Extract branch name
+                branch = None
+                for word in words:
+                    if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
+                        branch = word
+                        break
+                
+                if branch:
+                    console.print(f"[cyan]🔍 Checking PRs for branch '{branch}' in {org_repo}...[/cyan]")
+                    _github_pr(org_repo, branch=branch)
+                else:
+                    console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
+                    _github_pr(org_repo, list_all=True)
+            else:
+                console.print(f"[cyan]🔍 Listing all PRs for {org_repo}...[/cyan]")
+                _github_pr(org_repo, list_all=True)
+                
+        elif any(keyword in lower_query for keyword in ['clone', 'pull', 'download', 'fetch']) and 'commit' not in lower_query:
+            # Only trigger clone if 'commit' is not in the query (to avoid conflicts with "fetch commits")
+            # Extract branch if specified
+            branch = None
+            for word in words:
+                if word.lower() in ['rc1', 'main', 'develop', 'master', 'dev']:
+                    branch = word
+                    break
+            
+            console.print(f"[cyan]🔍 Cloning {org_repo}...[/cyan]")
+            _github_clone(org_repo, branch=branch)
             
         else:
             # Default to listing PRs

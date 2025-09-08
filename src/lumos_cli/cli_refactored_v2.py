@@ -23,6 +23,7 @@ from .commands.jira import jira_config as jira_config_impl
 from .commands.neo4j import neo4j_config as neo4j_config_impl
 from .commands.appdynamics import appdynamics_config as appdynamics_config_impl
 from .commands.enterprise_llm import enterprise_llm_config as enterprise_llm_config_impl
+from .commands.openai import openai_config as openai_config_impl
 
 # Import config managers for interactive setup
 from .config.github_config_manager import GitHubConfigManager
@@ -31,6 +32,7 @@ from .config.jira_config_manager import JiraConfigManager
 from .config.neo4j_config import Neo4jConfigManager
 from .config.appdynamics_config import AppDynamicsConfigManager
 from .config.enterprise_llm_config import EnterpriseLLMConfigManager
+from .config.openai_config import OpenAIConfigManager
 
 # Import interactive mode
 from .interactive import interactive_mode
@@ -260,6 +262,25 @@ def enterprise_llm_interactive_config(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("[yellow]Usage: lumos-cli enterprise-llm config[/yellow]")
+
+# OpenAI commands
+@app.command("openai-config")
+def openai_config():
+    """View OpenAI/GPT integration configuration status"""
+    openai_config_impl()
+
+@app.command("openai")
+def openai_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive OpenAI/GPT configuration"""
+    if action == "config":
+        config_manager = OpenAIConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli openai config[/yellow]")
 
 # Utility commands
 @app.command()

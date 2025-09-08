@@ -19,10 +19,12 @@ from .commands import (
     jenkins_analyze_failure as jenkins_analyze_failure_impl, 
     jenkins_config as jenkins_config_impl
 )
+from .commands.jira import jira_config as jira_config_impl
 
 # Import config managers for interactive setup
 from .config.github_config_manager import GitHubConfigManager
 from .config.jenkins_config_manager import JenkinsConfigManager
+from .config.jira_config_manager import JiraConfigManager
 
 # Import interactive mode
 from .interactive import interactive_mode
@@ -176,6 +178,25 @@ def jenkins_interactive_config(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("[yellow]Usage: lumos-cli jenkins config[/yellow]")
+
+# JIRA commands
+@app.command()
+def jira_config():
+    """View JIRA integration configuration status"""
+    jira_config_impl()
+
+@app.command("jira")
+def jira_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive JIRA configuration"""
+    if action == "config":
+        config_manager = JiraConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli jira config[/yellow]")
 
 # Utility commands
 @app.command()

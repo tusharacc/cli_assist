@@ -100,6 +100,22 @@ class JiraClient:
         else:
             debug_logger.warning("Jira client initialized without credentials (stub mode)")
     
+    def test_connection(self) -> bool:
+        """Test JIRA connection"""
+        if not self.username or not self.api_token:
+            return False
+        
+        try:
+            # Test the connection with a real API call
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {self.api_token}'
+            }
+            response = requests.get(f"{self.base_url}/rest/api/latest/myself", headers=headers, timeout=10)
+            return response.status_code == 200
+        except Exception:
+            return False
+    
     def get_ticket(self, ticket_id: str) -> Optional[Dict]:
         """Get ticket details from Jira"""
         debug_logger.log_function_call("JiraClient.get_ticket", kwargs={"ticket_id": ticket_id})

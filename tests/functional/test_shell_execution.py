@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path for imports  
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.utils.shell_executor import execute_shell_command
+from src.lumos_cli.utils.shell_executor import execute_shell_command
 from rich.console import Console
 
 def test_non_interactive_execution():

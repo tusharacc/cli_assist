@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.failure_analyzer import analyze_command_failure, failure_analyzer
+from src.lumos_cli.utils.failure_analyzer import analyze_command_failure, failure_analyzer
 from rich.console import Console
 
 def test_python_failure_analysis():

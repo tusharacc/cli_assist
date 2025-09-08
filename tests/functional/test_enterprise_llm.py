@@ -8,10 +8,10 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.config import config
-from lumos_cli.client import LLMRouter
-from lumos_cli.enterprise_llm import EnterpriseLLMProvider, is_enterprise_configured
-from lumos_cli.ui import create_header
+from src.lumos_cli.config import config
+from src.lumos_cli.core.router import LLMRouter
+from src.lumos_cli.enterprise_llm import EnterpriseLLMProvider, is_enterprise_configured
+from src.lumos_cli.ui import create_header
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel

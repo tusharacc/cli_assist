@@ -8,7 +8,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.platform_utils import (
+from src.lumos_cli.utils.platform_utils import (
     is_windows, is_macos, is_linux,
     get_config_directory, get_logs_directory, get_cache_directory,
     check_ollama_installed, get_platform_info

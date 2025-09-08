@@ -5,7 +5,7 @@ Jenkins integration commands for Lumos CLI
 import typer
 from rich.console import Console
 from rich.panel import Panel
-from ..jenkins_client import JenkinsClient
+from ..clients.jenkins_client import JenkinsClient
 
 console = Console()
 

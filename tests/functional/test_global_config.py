@@ -8,9 +8,9 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.platform_utils import get_config_directory, get_logs_directory
+from src.lumos_cli.utils.platform_utils import get_config_directory, get_logs_directory
 from lumos_cli.config import config
-from lumos_cli.ui import create_header
+from src.lumos_cli.ui import create_header
 from rich.console import Console
 from rich.table import Table
 

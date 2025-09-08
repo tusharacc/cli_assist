@@ -149,6 +149,17 @@ src/lumos_cli/
 │   ├── scaffold.py                # Project scaffolding
 │   └── shell_executor.py          # Shell command execution
 ├── cli_refactored_v2.py           # Main CLI entry point
+├── config.py                      # Main configuration
+├── agentic_router.py              # Agentic routing system
+├── app_detector.py                # Application detection
+├── enterprise_llm.py              # Enterprise LLM integration
+├── enterprise_llm_replica.py      # Enterprise LLM replica
+├── environment_manager.py         # Environment management
+├── gpt4_simulator.py              # GPT-4 simulation
+├── huggingface_manager.py         # Hugging Face integration
+├── logger.py                      # Logging system
+├── prompts.py                     # Prompt templates
+├── safe_code_executor.py          # Safe code execution
 └── __init__.py                    # Package initialization
 ```
 

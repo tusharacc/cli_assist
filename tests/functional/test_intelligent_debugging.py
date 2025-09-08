@@ -7,7 +7,7 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.file_discovery import SmartFileDiscovery
+from src.lumos_cli.utils.file_discovery import SmartFileDiscovery
 from rich.console import Console
 
 def test_enhanced_debugging_workflow():

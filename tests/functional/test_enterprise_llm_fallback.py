@@ -75,7 +75,7 @@ def test_enterprise_configuration():
     print("\n🏢 Testing Enterprise LLM Configuration...")
     
     try:
-        from lumos_cli.enterprise_llm_config import get_enterprise_llm_config_manager
+        from src.lumos_cli.config.enterprise_llm_config import get_enterprise_llm_config_manager
         
         # Initialize configuration manager
         print("\n1. Initializing configuration manager...")

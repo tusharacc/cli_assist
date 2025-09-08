@@ -97,7 +97,7 @@ def demo_enterprise_llm_oauth2():
     examples = [
         {
             "scenario": "Interactive Configuration",
-            "code": "from lumos_cli.enterprise_llm_config import get_enterprise_llm_config_manager\n\nconfig_manager = get_enterprise_llm_config_manager()\nconfig_manager.setup_interactive()"
+            "code": "from src.lumos_cli.config.enterprise_llm_config import get_enterprise_llm_config_manager\n\nconfig_manager = get_enterprise_llm_config_manager()\nconfig_manager.setup_interactive()"
         },
         {
             "scenario": "Programmatic Configuration",

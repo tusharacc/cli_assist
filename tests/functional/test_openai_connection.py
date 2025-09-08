@@ -8,9 +8,9 @@ from pathlib import Path
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from lumos_cli.config import load_env_file, config
-from lumos_cli.client import LLMRouter
-from lumos_cli.ui import create_header
+from src.lumos_cli.config import load_env_file, config
+from src.lumos_cli.core.router import LLMRouter
+from src.lumos_cli.ui import create_header
 from rich.console import Console
 
 def test_openai_connection():

@@ -1,6 +1,7 @@
 # 📚 Lumos CLI Module Functionality Reference
 
 ## 📋 Table of Contents
+- [Root-Level Files](#root-level-files)
 - [Core Modules](#core-modules)
 - [Client Modules](#client-modules)
 - [Interactive Modules](#interactive-modules)
@@ -8,6 +9,218 @@
 - [Utility Modules](#utility-modules)
 - [UI Modules](#ui-modules)
 - [Command Modules](#command-modules)
+
+## 🔧 Core Modules
+
+### Root-Level Files
+
+#### `cli_refactored_v2.py` - Main CLI Entry Point
+**Purpose**: Main CLI application entry point with command routing
+
+**Key Functions**:
+```python
+def app() -> typer.Typer:
+    """Main CLI application"""
+
+def interactive() -> None:
+    """Interactive mode entry point"""
+
+def plan(task: str) -> None:
+    """Code planning command"""
+
+def edit(file_path: str, instruction: str) -> None:
+    """Code editing command"""
+```
+
+**Dependencies**: `typer`, `rich`, all core modules
+
+---
+
+#### `config.py` - Main Configuration
+**Purpose**: Central configuration management and environment loading
+
+**Key Functions**:
+```python
+def load_env_file() -> None:
+    """Loads environment variables from .env file"""
+
+def get_config() -> dict:
+    """Gets current configuration"""
+
+def is_enterprise_configured() -> bool:
+    """Checks if enterprise LLM is configured"""
+```
+
+**Dependencies**: `python-dotenv`, `os`
+
+---
+
+#### `agentic_router.py` - Agentic Routing System
+**Purpose**: Advanced routing system for agentic workflows
+
+**Key Classes**:
+- `AgenticRouter`: Routes tasks to appropriate agents
+- `Agent`: Base agent class for different capabilities
+
+**Key Functions**:
+```python
+def route_agentic_task(task: str, context: dict) -> str:
+    """Routes task to appropriate agent"""
+
+def get_available_agents() -> List[str]:
+    """Returns list of available agents"""
+```
+
+**Dependencies**: Core router, all client modules
+
+---
+
+#### `enterprise_llm.py` - Enterprise LLM Integration
+**Purpose**: Enterprise LLM provider integration
+
+**Key Classes**:
+- `EnterpriseLLMProvider`: Enterprise LLM provider
+- `EnterpriseLLMConfig`: Configuration management
+
+**Key Functions**:
+```python
+def get_enterprise_llm() -> EnterpriseLLMProvider:
+    """Gets enterprise LLM provider"""
+
+def is_enterprise_configured() -> bool:
+    """Checks if enterprise LLM is configured"""
+```
+
+**Dependencies**: `requests`, `typing`
+
+---
+
+#### `enterprise_llm_replica.py` - Enterprise LLM Replica
+**Purpose**: Local replica of enterprise LLM for testing
+
+**Key Classes**:
+- `EnterpriseLLMReplica`: Local enterprise LLM simulation
+
+**Key Functions**:
+```python
+def get_enterprise_llm_replica() -> EnterpriseLLMReplica:
+    """Gets enterprise LLM replica"""
+
+def configure_replica(config: dict) -> bool:
+    """Configures the replica"""
+```
+
+**Dependencies**: `openai`, `requests`
+
+---
+
+#### `environment_manager.py` - Environment Management
+**Purpose**: Manages development and production environments
+
+**Key Functions**:
+```python
+def get_environment() -> str:
+    """Gets current environment"""
+
+def is_development() -> bool:
+    """Checks if in development mode"""
+
+def is_production() -> bool:
+    """Checks if in production mode"""
+```
+
+**Dependencies**: `os`, `typing`
+
+---
+
+#### `gpt4_simulator.py` - GPT-4 Simulation
+**Purpose**: Simulates GPT-4 behavior for testing
+
+**Key Classes**:
+- `GPT4Simulator`: GPT-4 simulation class
+
+**Key Functions**:
+```python
+def simulate_gpt4(prompt: str) -> str:
+    """Simulates GPT-4 response"""
+
+def configure_simulator(config: dict) -> bool:
+    """Configures the simulator"""
+```
+
+**Dependencies**: `openai`, `typing`
+
+---
+
+#### `huggingface_manager.py` - Hugging Face Integration
+**Purpose**: Manages Hugging Face model integration
+
+**Key Classes**:
+- `HuggingFaceManager`: Hugging Face model manager
+
+**Key Functions**:
+```python
+def load_model(model_name: str) -> Any:
+    """Loads Hugging Face model"""
+
+def generate_text(prompt: str, model: Any) -> str:
+    """Generates text using Hugging Face model"""
+```
+
+**Dependencies**: `transformers`, `torch`
+
+---
+
+#### `logger.py` - Logging System
+**Purpose**: Centralized logging system
+
+**Key Functions**:
+```python
+def setup_logging() -> None:
+    """Sets up logging configuration"""
+
+def get_logger(name: str) -> logging.Logger:
+    """Gets logger instance"""
+```
+
+**Dependencies**: `logging`, `os`
+
+---
+
+#### `prompts.py` - Prompt Templates
+**Purpose**: Centralized prompt templates
+
+**Key Functions**:
+```python
+def get_prompt(template_name: str) -> str:
+    """Gets prompt template"""
+
+def format_prompt(template: str, **kwargs) -> str:
+    """Formats prompt with variables"""
+```
+
+**Dependencies**: `typing`
+
+---
+
+#### `safe_code_executor.py` - Safe Code Execution
+**Purpose**: Safely executes code with validation
+
+**Key Classes**:
+- `SafeCodeExecutor`: Safe code execution class
+
+**Key Functions**:
+```python
+def execute_code(code: str, language: str) -> dict:
+    """Safely executes code"""
+
+def validate_code(code: str, language: str) -> bool:
+    """Validates code before execution"""
+```
+
+**Dependencies**: `subprocess`, `typing`
+
+---
 
 ## 🔧 Core Modules
 
@@ -526,24 +739,54 @@ def get_credentials() -> dict:
 ---
 
 ### `config/jira_config_manager.py` - Jira Configuration
-**Purpose**: Jira configuration management
+**Purpose**: Manages Jira API configuration and authentication
 
 **Key Classes**:
-- `JiraConfigManager`: Manages Jira configuration
+- `JiraConfigManager`: Jira configuration management
 
 **Key Functions**:
 ```python
-def load_config() -> dict:
-    """Loads Jira configuration"""
+def setup_interactive() -> Optional[dict]:
+    """Interactive Jira configuration setup"""
 
-def save_config(config: dict) -> bool:
+def get_config() -> dict:
+    """Retrieves Jira configuration"""
+
+def is_configured() -> bool:
+    """Checks if Jira is configured"""
+
+def save_config(config: dict) -> None:
     """Saves Jira configuration"""
+```
 
-def validate_config(config: dict) -> bool:
-    """Validates configuration"""
+**Configuration Fields**:
+- `base_url`: Jira instance URL
+- `username`: Jira username/email
+- `api_token`: Jira Personal Access Token (Bearer authentication)
 
-def get_credentials() -> dict:
-    """Gets Jira credentials"""
+**Dependencies**: `requests`, `rich`, `typing`
+
+---
+
+### `config/validators.py` - Configuration Validation
+**Purpose**: Validates configuration data for all services
+
+**Key Functions**:
+```python
+def validate_github_config(config: dict) -> bool:
+    """Validates GitHub configuration"""
+
+def validate_jenkins_config(config: dict) -> bool:
+    """Validates Jenkins configuration"""
+
+def validate_neo4j_config(config: dict) -> bool:
+    """Validates Neo4j configuration"""
+
+def validate_appdynamics_config(config: dict) -> bool:
+    """Validates AppDynamics configuration"""
+
+def validate_enterprise_llm_config(config: dict) -> bool:
+    """Validates Enterprise LLM configuration"""
 ```
 
 ---

@@ -20,11 +20,13 @@ from .commands import (
     jenkins_config as jenkins_config_impl
 )
 from .commands.jira import jira_config as jira_config_impl
+from .commands.neo4j import neo4j_config as neo4j_config_impl
 
 # Import config managers for interactive setup
 from .config.github_config_manager import GitHubConfigManager
 from .config.jenkins_config_manager import JenkinsConfigManager
 from .config.jira_config_manager import JiraConfigManager
+from .config.neo4j_config import Neo4jConfigManager
 
 # Import interactive mode
 from .interactive import interactive_mode
@@ -197,6 +199,25 @@ def jira_interactive_config(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("[yellow]Usage: lumos-cli jira config[/yellow]")
+
+# Neo4j commands
+@app.command()
+def neo4j_config():
+    """View Neo4j integration configuration status"""
+    neo4j_config_impl()
+
+@app.command("neo4j")
+def neo4j_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive Neo4j configuration"""
+    if action == "config":
+        config_manager = Neo4jConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli neo4j config[/yellow]")
 
 # Utility commands
 @app.command()

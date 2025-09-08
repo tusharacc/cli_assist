@@ -358,7 +358,8 @@ class GitHubClient:
         """Format commit details for display"""
         sha = commit.get('sha', 'unknown')[:7]
         author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
-        date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+        date_str = commit.get('commit', {}).get('date', 'Unknown')
+        date = date_str[:10] if date_str != 'Unknown' else 'Unknown'
         message = commit.get('commit', {}).get('message', 'No message').split('\n')[0]
         
         # Get stats if available
@@ -380,7 +381,8 @@ class GitHubClient:
         """Format detailed commit analysis with file changes and code analysis"""
         sha = commit.get('sha', 'unknown')[:7]
         author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
-        date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+        date_str = commit.get('commit', {}).get('date', 'Unknown')
+        date = date_str[:10] if date_str != 'Unknown' else 'Unknown'
         message = commit.get('commit', {}).get('message', 'No message')
         
         # Get stats
@@ -432,7 +434,8 @@ class GitHubClient:
                 'file_summary': "No file changes detected",
                 'code_analysis': "No code changes to analyze",
                 'impact_summary': "No changes detected",
-                'method_class_changes': "No method or class changes detected"
+                'method_class_changes': "No method or class changes detected",
+                'dependency_analysis': "No dependencies to analyze"
             }
         
         # Extract method and class changes from diffs
@@ -913,7 +916,8 @@ class GitHubClient:
             sha = commit.get('sha', 'unknown')[:7]
             message = commit.get('commit', {}).get('message', 'No message').split('\n')[0]
             author = commit.get('commit', {}).get('author', {}).get('name', 'Unknown')
-            date = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]
+            date_str = commit.get('commit', {}).get('author', {}).get('date', 'Unknown')
+            date = date_str[:10] if date_str != 'Unknown' else 'Unknown'
             
             # Get stats
             stats = commit.get('stats', {})

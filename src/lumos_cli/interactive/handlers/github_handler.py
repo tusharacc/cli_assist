@@ -214,42 +214,27 @@ def _github_commits(org_repo: str, count: int = 5, latest: bool = False, commit_
             return
         
         if commit_sha:
-            # Get specific commit
+            # Get specific commit with detailed analysis
             console.print(f"[cyan]🔍 Getting commit {commit_sha} for {org}/{repo}...[/cyan]")
             commit_info = github.get_commit_details(org, repo, commit_sha)
             
             if commit_info:
-                console.print(f"\n[bold]Commit {commit_sha[:8]}...[/bold]")
-                console.print(f"  📝 Message: {commit_info.get('commit', {}).get('message', 'No message')}")
-                console.print(f"  👤 Author: {commit_info.get('commit', {}).get('author', {}).get('name', 'Unknown')}")
-                console.print(f"  📅 Date: {commit_info.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]}")
-                console.print(f"  🔗 URL: {commit_info.get('html_url', 'No URL')}")
-                
-                # Show file changes
-                files = commit_info.get('files', [])
-                if files:
-                    console.print(f"\n[bold]Files Changed ({len(files)}):[/bold]")
-                    for file in files[:10]:  # Show first 10
-                        status = file.get('status', 'modified')
-                        filename = file.get('filename', 'Unknown')
-                        additions = file.get('additions', 0)
-                        deletions = file.get('deletions', 0)
-                        console.print(f"  {status.upper()}: {filename} (+{additions}/-{deletions})")
+                # Use the detailed commit analysis instead of basic formatting
+                detailed_analysis = github.format_detailed_commit_analysis(commit_info)
+                console.print(detailed_analysis)
             else:
                 console.print(f"[red]❌ Commit {commit_sha} not found[/red]")
                 
         elif latest:
-            # Get latest commit
+            # Get latest commit with detailed analysis
             console.print(f"[cyan]🔍 Getting latest commit for {org}/{repo}...[/cyan]")
             commits = github.get_commits(org, repo, count=1)
             
             if commits:
                 commit = commits[0]
-                console.print(f"\n[bold]Latest Commit:[/bold]")
-                console.print(f"  📝 Message: {commit.get('commit', {}).get('message', 'No message')}")
-                console.print(f"  👤 Author: {commit.get('commit', {}).get('author', {}).get('name', 'Unknown')}")
-                console.print(f"  📅 Date: {commit.get('commit', {}).get('author', {}).get('date', 'Unknown')[:10]}")
-                console.print(f"  🔗 URL: {commit.get('html_url', 'No URL')}")
+                # Use detailed analysis for latest commit too
+                detailed_analysis = github.format_detailed_commit_analysis(commit)
+                console.print(detailed_analysis)
             else:
                 console.print(f"[yellow]No commits found[/yellow]")
                 

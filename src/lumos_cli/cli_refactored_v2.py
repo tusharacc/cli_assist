@@ -12,9 +12,12 @@ from .core.persona_manager import PersonaManager
 
 # Import command modules
 from .commands import (
-    github_clone, github_pr, github_config,
-    jenkins_failed_jobs, jenkins_running_jobs, jenkins_repository_jobs, 
-    jenkins_build_parameters, jenkins_analyze_failure, jenkins_config
+    github_clone as github_clone_impl, github_pr as github_pr_impl, github_config as github_config_impl,
+    jenkins_failed_jobs as jenkins_failed_jobs_impl, jenkins_running_jobs as jenkins_running_jobs_impl, 
+    jenkins_repository_jobs as jenkins_repository_jobs_impl, 
+    jenkins_build_parameters as jenkins_build_parameters_impl, 
+    jenkins_analyze_failure as jenkins_analyze_failure_impl, 
+    jenkins_config as jenkins_config_impl
 )
 
 # Import interactive mode
@@ -101,48 +104,48 @@ def chat(message: str):
 @app.command()
 def github_clone(org_repo: str, branch: str = None, target_dir: str = None):
     """Clone a GitHub repository"""
-    github_clone(org_repo, branch, target_dir)
+    github_clone_impl(org_repo, branch, target_dir)
 
 @app.command()
 def github_pr(org_repo: str, branch: str = None, pr_number: int = None, list_all: bool = False):
     """Check pull requests for a GitHub repository"""
-    github_pr(org_repo, branch, pr_number, list_all)
+    github_pr_impl(org_repo, branch, pr_number, list_all)
 
 @app.command()
 def github_config():
     """Configure GitHub integration"""
-    github_config()
+    github_config_impl()
 
 # Jenkins commands
 @app.command()
 def jenkins_failed_jobs(hours: int = 4):
     """Get failed Jenkins jobs from the last N hours"""
-    jenkins_failed_jobs(hours)
+    jenkins_failed_jobs_impl(hours)
 
 @app.command()
 def jenkins_running_jobs():
     """Get currently running Jenkins jobs"""
-    jenkins_running_jobs()
+    jenkins_running_jobs_impl()
 
 @app.command()
 def jenkins_repository_jobs(repository: str, branch: str = None):
     """Get Jenkins jobs for a specific repository"""
-    jenkins_repository_jobs(repository, branch)
+    jenkins_repository_jobs_impl(repository, branch)
 
 @app.command()
 def jenkins_build_parameters(folder: str, job_name: str, build_number: int):
     """Get build parameters for a specific Jenkins job"""
-    jenkins_build_parameters(folder, job_name, build_number)
+    jenkins_build_parameters_impl(folder, job_name, build_number)
 
 @app.command()
 def jenkins_analyze_failure(folder: str, job_name: str, build_number: int):
     """Analyze why a Jenkins build failed"""
-    jenkins_analyze_failure(folder, job_name, build_number)
+    jenkins_analyze_failure_impl(folder, job_name, build_number)
 
 @app.command()
 def jenkins_config():
     """Configure Jenkins integration"""
-    jenkins_config()
+    jenkins_config_impl()
 
 # Utility commands
 @app.command()

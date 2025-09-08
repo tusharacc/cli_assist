@@ -21,12 +21,14 @@ from .commands import (
 )
 from .commands.jira import jira_config as jira_config_impl
 from .commands.neo4j import neo4j_config as neo4j_config_impl
+from .commands.appdynamics import appdynamics_config as appdynamics_config_impl
 
 # Import config managers for interactive setup
 from .config.github_config_manager import GitHubConfigManager
 from .config.jenkins_config_manager import JenkinsConfigManager
 from .config.jira_config_manager import JiraConfigManager
 from .config.neo4j_config import Neo4jConfigManager
+from .config.appdynamics_config import AppDynamicsConfigManager
 
 # Import interactive mode
 from .interactive import interactive_mode
@@ -218,6 +220,25 @@ def neo4j_interactive_config(
     else:
         console.print(f"[red]Unknown action: {action}[/red]")
         console.print("[yellow]Usage: lumos-cli neo4j config[/yellow]")
+
+# AppDynamics commands
+@app.command()
+def appdynamics_config():
+    """View AppDynamics integration configuration status"""
+    appdynamics_config_impl()
+
+@app.command("appdynamics")
+def appdynamics_interactive_config(
+    ctx: typer.Context,
+    action: str = typer.Argument(..., help="Action: 'config' for interactive setup")
+):
+    """Interactive AppDynamics configuration"""
+    if action == "config":
+        config_manager = AppDynamicsConfigManager()
+        config_manager.setup_interactive()
+    else:
+        console.print(f"[red]Unknown action: {action}[/red]")
+        console.print("[yellow]Usage: lumos-cli appdynamics config[/yellow]")
 
 # Utility commands
 @app.command()

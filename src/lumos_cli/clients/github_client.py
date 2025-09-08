@@ -235,6 +235,35 @@ class GitHubClient:
             debug_logger.log_function_return("GitHubClient.get_latest_commit", "No commits found")
             return {}
     
+    def get_commits(self, org: str, repo: str, count: int = 5, branch: str = None) -> List[Dict]:
+        """Get commits for a repository (wrapper for list_commits with count parameter)"""
+        debug_logger.log_function_call("GitHubClient.get_commits", kwargs={"org": org, "repo": repo, "count": count, "branch": branch})
+        
+        commits = self.list_commits(org, repo, branch, per_page=count)
+        debug_logger.log_function_return("GitHubClient.get_commits", f"Found {len(commits)} commits")
+        return commits
+    
+    def get_commit_details(self, org: str, repo: str, commit_sha: str) -> Dict:
+        """Get detailed commit information (wrapper for get_commit)"""
+        debug_logger.log_function_call("GitHubClient.get_commit_details", kwargs={"org": org, "repo": repo, "commit_sha": commit_sha})
+        
+        commit = self.get_commit(org, repo, commit_sha)
+        debug_logger.log_function_return("GitHubClient.get_commit_details", f"Commit details: {commit.get('sha', 'unknown')[:7] if commit else 'Not found'}")
+        return commit
+    
+    def get_pull_requests(self, org: str, repo: str, branch: str = None, state: str = "open") -> List[Dict]:
+        """Get pull requests for a repository"""
+        debug_logger.log_function_call("GitHubClient.get_pull_requests", kwargs={"org": org, "repo": repo, "branch": branch, "state": state})
+        
+        endpoint = f"/repos/{org}/{repo}/pulls"
+        params = {"state": state, "per_page": 100}
+        if branch:
+            params["head"] = f"{org}:{branch}"
+        
+        result = self._make_request(endpoint, params)
+        debug_logger.log_function_return("GitHubClient.get_pull_requests", f"Found {len(result)} pull requests")
+        return result or []
+    
     def clone_repository(self, org: str, repo: str, branch: str = None, 
                         target_dir: str = None) -> Tuple[bool, str]:
         """Clone repository and return success status and path"""

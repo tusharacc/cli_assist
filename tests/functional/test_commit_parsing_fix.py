@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from lumos_cli.github_query_parser import GitHubQueryParser
+from lumos_cli.utils.github_query_parser import GitHubQueryParser
 
 def test_specific_query():
     """Test the specific query that was failing"""

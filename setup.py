@@ -14,7 +14,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "lumos-cli=lumos_cli.cli:app",
+            "lumos-cli=lumos_cli.cli_refactored_v2:app",
         ],
     },
 )

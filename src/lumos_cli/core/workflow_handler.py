@@ -5,10 +5,10 @@ Workflow handler for complex multi-system operations
 
 import re
 from typing import Dict, List, Optional
-from .github_client import GitHubClient
-from .jira_client import JiraClient
-from .neo4j_client import Neo4jClient
-from .debug_logger import debug_logger
+from ..clients.github_client import GitHubClient
+from ..clients.jira_client import JiraClient
+from ..clients.neo4j_client import Neo4jClient
+from ..utils.debug_logger import debug_logger
 
 class WorkflowHandler:
     """Handles complex workflows spanning multiple systems"""

@@ -2,10 +2,10 @@
 Interactive mode for Lumos CLI
 """
 
-from .intent_detection import detect_command_intent
-from .jenkins_handler import interactive_jenkins
+from .mode import interactive_mode
+from .intent_detection import detect_intent
 
 __all__ = [
-    'detect_command_intent',
-    'interactive_jenkins'
+    'interactive_mode',
+    'detect_intent'
 ]

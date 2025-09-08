@@ -12,9 +12,9 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
-from .utils.debug_logger import get_debug_logger
-from .clients.neo4j_dotnet_client import Neo4jDotNetClient
-from .config.neo4j_config import Neo4jConfigManager
+from ..utils.debug_logger import get_debug_logger
+from .neo4j_dotnet_client import Neo4jDotNetClient
+from ..config.neo4j_config import Neo4jConfigManager
 
 console = Console()
 debug_logger = get_debug_logger()
@@ -26,7 +26,7 @@ class GitHubClient:
         debug_logger.log_function_call("GitHubClient.__init__", kwargs={"token": token, "base_url": base_url})
         
         # Try to get from config manager first, then environment variables
-        from .github_config_manager import get_github_config
+        from ..config.github_config_manager import get_github_config
         config = get_github_config()
         
         if config:

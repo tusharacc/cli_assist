@@ -6,8 +6,8 @@ Advanced intent detection using LLM with fallback to regex patterns
 import re
 import json
 from typing import Dict, List, Optional
-from .client import LLMRouter
-from .debug_logger import debug_logger
+from .router import LLMRouter
+from ..utils.debug_logger import debug_logger
 
 class IntentDetector:
     """Advanced intent detection using LLM with regex fallback"""

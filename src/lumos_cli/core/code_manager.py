@@ -17,10 +17,10 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.syntax import Syntax
 
-from .client import LLMRouter
+from .router import LLMRouter
 from .safety import SafeFileEditor
-from .file_discovery import SmartFileDiscovery
-from .debug_logger import debug_logger
+from ..utils.file_discovery import SmartFileDiscovery
+from ..utils.debug_logger import debug_logger
 
 console = Console()
 

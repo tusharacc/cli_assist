@@ -8,7 +8,7 @@ import json
 from typing import List, Dict, Optional, Any
 from neo4j import GraphDatabase
 from rich.console import Console
-from .debug_logger import get_debug_logger
+from ..utils.debug_logger import get_debug_logger
 
 console = Console()
 debug_logger = get_debug_logger()

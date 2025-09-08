@@ -6,7 +6,7 @@ Hybrid GitHub query parsing using both text patterns and LLM-based extraction
 import re
 import json
 from typing import Dict, Optional, Tuple, List
-from .client import LLMRouter
+from ..core.router import LLMRouter
 from .debug_logger import debug_logger
 
 class GitHubQueryParser:

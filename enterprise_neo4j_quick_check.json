@@ -1,0 +1,106 @@
+{
+  "timestamp": "2025-09-07T19:58:59.519814",
+  "neo4j_uri": "bolt://localhost:7687",
+  "quick_analysis": {
+    "node_labels": [],
+    "relationship_types": [
+      {
+        "type": "HAS_CLASSES",
+        "count": 8267
+      },
+      {
+        "type": "HAS_METHOD",
+        "count": 8231
+      },
+      {
+        "type": "CALLS_METHOD",
+        "count": 6827
+      },
+      {
+        "type": "HAS_ROUTES",
+        "count": 578
+      },
+      {
+        "type": "HAS_ENUMS",
+        "count": 402
+      },
+      {
+        "type": "DEPENDS_ON",
+        "count": 206
+      },
+      {
+        "type": "CALLS_SP",
+        "count": 175
+      },
+      {
+        "type": "HAS_CONSTANTS",
+        "count": 121
+      }
+    ],
+    "old_schema": [],
+    "new_schema": [
+      {
+        "labels": [
+          "Method"
+        ],
+        "count": 8395
+      },
+      {
+        "labels": [
+          "Class"
+        ],
+        "count": 8267
+      },
+      {
+        "labels": [
+          "Controller"
+        ],
+        "count": 459
+      },
+      {
+        "labels": [
+          "Enum"
+        ],
+        "count": 399
+      },
+      {
+        "labels": [
+          "StoredProcedure"
+        ],
+        "count": 149
+      },
+      {
+        "labels": [
+          "Constant"
+        ],
+        "count": 121
+      },
+      {
+        "labels": [
+          "Repository"
+        ],
+        "count": 46
+      }
+    ],
+    "dependency_tests": [
+      {
+        "name": "old_schema_deps",
+        "success": true,
+        "dependencies_found": 0,
+        "dependencies": []
+      },
+      {
+        "name": "new_schema_deps",
+        "success": true,
+        "dependencies_found": 0,
+        "dependencies": []
+      },
+      {
+        "name": "mixed_schema_deps",
+        "success": true,
+        "dependencies_found": 0,
+        "dependencies": []
+      }
+    ]
+  }
+}

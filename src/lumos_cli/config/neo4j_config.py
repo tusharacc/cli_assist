@@ -46,10 +46,9 @@ class Neo4jConfigManager:
         if config_file:
             self.config_file = Path(config_file)
         else:
-            # Use default location
-            config_dir = Path.home() / ".lumos"
-            config_dir.mkdir(exist_ok=True)
-            self.config_file = config_dir / "neo4j_config.json"
+            # Use standardized location
+            from ..utils.platform_utils import get_config_directory
+            self.config_file = get_config_directory() / "neo4j_config.json"
     
     def load_config(self) -> Optional[Neo4jConfig]:
         """Load Neo4j configuration from file"""

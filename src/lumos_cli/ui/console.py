@@ -42,8 +42,7 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                 pass  # Continue without .env file loading
             
             status_map = {}
-            config_dir = get_config_directory()  # Usually ~/Library/Application Support/Lumos
-            alt_config_dir = os.path.expanduser("~/.lumos")  # Alternative config location
+            config_dir = get_config_directory()  # Standardized: ~/.lumos/.config/
             
             # Check LLM Models
             # Ollama - check if installed and running
@@ -54,13 +53,10 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
             openai_key = os.getenv("OPENAI_API_KEY") or os.getenv("LLM_API_KEY")
             status_map['openai'] = '🟢' if openai_key else '🔴'
             
-            # Enterprise LLM - check config file (try both locations)
-            enterprise_config_file = os.path.join(alt_config_dir, "enterprise_llm_config.json")  # ~/.lumos/
-            if not os.path.exists(enterprise_config_file):
-                enterprise_config_file = os.path.join(config_dir, "enterprise_llm_config.json")  # App Support
-                
+            # Enterprise LLM - check config file
+            enterprise_config_file = config_dir / "enterprise_llm_config.json"
             enterprise_configured = False
-            if os.path.exists(enterprise_config_file):
+            if enterprise_config_file.exists():
                 try:
                     with open(enterprise_config_file, 'r') as f:
                         config_data = json.load(f)
@@ -71,11 +67,11 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                     pass
             status_map['enterprise'] = '🟢' if enterprise_configured else '🔴'
             
-            # Check Services using their config files
+            # Check Services using standardized config files
             # GitHub - check config file
-            github_config_file = os.path.join(config_dir, "github_config.json")
+            github_config_file = config_dir / "github_config.json"
             github_configured = False
-            if os.path.exists(github_config_file):
+            if github_config_file.exists():
                 try:
                     with open(github_config_file, 'r') as f:
                         config_data = json.load(f)
@@ -88,9 +84,9 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
             status_map['github'] = '🟢' if github_configured else '🟡'
             
             # Jenkins - check config file  
-            jenkins_config_file = os.path.join(config_dir, "jenkins_config.json")
+            jenkins_config_file = config_dir / "jenkins_config.json"
             jenkins_configured = False
-            if os.path.exists(jenkins_config_file):
+            if jenkins_config_file.exists():
                 try:
                     with open(jenkins_config_file, 'r') as f:
                         config_data = json.load(f)
@@ -99,13 +95,10 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                     pass
             status_map['jenkins'] = '🟢' if jenkins_configured else '🔴'
             
-            # Jira - check config file (try both locations)
-            jira_config_file = os.path.join(config_dir, "jira_config.json")  # App Support first
-            if not os.path.exists(jira_config_file):
-                jira_config_file = os.path.join(alt_config_dir, "jira_config.json")  # ~/.lumos/
-                
+            # Jira - check config file
+            jira_config_file = config_dir / "jira_config.json"
             jira_configured = False
-            if os.path.exists(jira_config_file):
+            if jira_config_file.exists():
                 try:
                     with open(jira_config_file, 'r') as f:
                         config_data = json.load(f)
@@ -114,13 +107,10 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                     pass
             status_map['jira'] = '🟢' if jira_configured else '🔴'
             
-            # Neo4j - check config file (try both locations)
-            neo4j_config_file = os.path.join(alt_config_dir, "neo4j_config.json")  # ~/.lumos/
-            if not os.path.exists(neo4j_config_file):
-                neo4j_config_file = os.path.join(config_dir, "neo4j_config.json")  # App Support
-                
+            # Neo4j - check config file
+            neo4j_config_file = config_dir / "neo4j_config.json"
             neo4j_configured = False
-            if os.path.exists(neo4j_config_file):
+            if neo4j_config_file.exists():
                 try:
                     with open(neo4j_config_file, 'r') as f:
                         config_data = json.load(f)
@@ -130,9 +120,9 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
             status_map['neo4j'] = '🟢' if neo4j_configured else '🔴'
             
             # AppDynamics - check config file
-            appdynamics_config_file = os.path.join(config_dir, "appdynamics_config.json")
+            appdynamics_config_file = config_dir / "appdynamics_config.json"
             appdynamics_configured = False
-            if os.path.exists(appdynamics_config_file):
+            if appdynamics_config_file.exists():
                 try:
                     with open(appdynamics_config_file, 'r') as f:
                         config_data = json.load(f)

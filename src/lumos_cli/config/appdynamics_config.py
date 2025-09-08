@@ -35,14 +35,10 @@ class AppDynamicsConfigManager:
         })
     
     def _get_config_path(self) -> Path:
-        """Get the configuration file path"""
-        if os.name == 'nt':  # Windows
-            config_dir = Path(os.environ.get('APPDATA', '')) / 'lumos' / 'appdynamics'
-        else:  # macOS/Linux
-            config_dir = Path.home() / '.config' / 'lumos' / 'appdynamics'
-        
-        config_dir.mkdir(parents=True, exist_ok=True)
-        return config_dir / 'config.json'
+        """Get the configuration file path using standardized location"""
+        from ..utils.platform_utils import get_config_directory
+        config_dir = get_config_directory()
+        return config_dir / 'appdynamics_config.json'
     
     def load_config(self) -> Optional[AppDynamicsConfig]:
         """Load configuration from file"""

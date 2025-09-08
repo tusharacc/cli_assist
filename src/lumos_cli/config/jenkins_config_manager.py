@@ -22,7 +22,11 @@ class JenkinsConfigManager:
     """Manages Jenkins configuration settings"""
     
     def __init__(self, config_file: str = None):
-        self.config_file = config_file or os.path.expanduser("~/.lumos_jenkins_config.json")
+        if config_file:
+            self.config_file = config_file
+        else:
+            from ..utils.platform_utils import get_config_directory
+            self.config_file = str(get_config_directory() / "jenkins_config.json")
     
     def load_config(self) -> Optional[JenkinsConfig]:
         """Load Jenkins configuration from file"""

@@ -29,7 +29,8 @@ class EnterpriseLLMConfigManager:
     
     def __init__(self):
         self.console = console
-        self.config_file = os.path.expanduser("~/.lumos/enterprise_llm_config.json")
+        from ..utils.platform_utils import get_config_directory
+        self.config_file = str(get_config_directory() / "enterprise_llm_config.json")
         self.config_data = EnterpriseLLMConfigData()
         self._load_config()
     

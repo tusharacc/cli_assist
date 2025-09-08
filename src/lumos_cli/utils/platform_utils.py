@@ -29,25 +29,11 @@ def get_home_directory() -> Path:
     return Path.home()
 
 def get_config_directory() -> Path:
-    """Get application config directory following platform conventions"""
-    if is_windows():
-        # Windows: %APPDATA%/Lumos
-        appdata = os.getenv('APPDATA')
-        if appdata:
-            return Path(appdata) / "Lumos"
-        else:
-            # Fallback to user profile
-            return Path.home() / "AppData" / "Roaming" / "Lumos"
-    elif is_macos():
-        # macOS: ~/Library/Application Support/Lumos  
-        return Path.home() / "Library" / "Application Support" / "Lumos"
-    else:
-        # Linux/Unix: ~/.config/lumos or ~/.lumos
-        xdg_config = os.getenv('XDG_CONFIG_HOME')
-        if xdg_config:
-            return Path(xdg_config) / "lumos"
-        else:
-            return Path.home() / ".config" / "lumos"
+    """Get application config directory - standardized across all platforms"""
+    # Standardized path: ~/.lumos/.config/ for all operating systems
+    config_dir = Path.home() / ".lumos" / ".config"
+    config_dir.mkdir(parents=True, exist_ok=True)
+    return config_dir
 
 def get_logs_directory() -> Path:
     """Get logs directory following platform conventions"""

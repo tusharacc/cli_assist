@@ -55,7 +55,6 @@ def interactive_mode():
             if user_input.startswith('/'):
                 if user_input.startswith('/help'):
                     _show_interactive_help()
-                    show_footer(compact=True)
                     continue
                 elif user_input.startswith('/edit'):
                     instruction = user_input[5:].strip()

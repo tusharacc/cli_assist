@@ -3,12 +3,97 @@ Jenkins interactive mode handlers
 """
 
 import re
+import json
 from rich.console import Console
 from ...clients.jenkins_client import JenkinsClient
 from ...utils.debug_logger import get_debug_logger
+from ...core.router import LLMRouter
 
 console = Console()
 debug_logger = get_debug_logger()
+
+def _extract_folder_path_with_llm(query: str) -> str:
+    """Extract Jenkins folder path from natural language query using LLM with regex fallback"""
+    try:
+        # Initialize LLM router with Ollama backend for reliable local processing
+        router = LLMRouter(backend="ollama")
+        
+        # Create a focused prompt for folder path extraction
+        prompt = f"""You are a Jenkins folder path extractor. Extract the Jenkins folder path from the user query.
+
+User Query: "{query}"
+
+Jenkins folder structure examples:
+- "scimarketplace/deploy-all" - Main deployment folder
+- "scimarketplace/quote_multi/RC1" - Repository folder with branch
+- "scimarketplace/externaldata_multi/RC2" - Repository folder with branch
+- "scimarketplace/addresssearch_multi/RC3" - Repository folder with branch
+
+Rules:
+1. If user mentions "deploy-all", return "scimarketplace/deploy-all"
+2. If user mentions a repository name (like "quote", "externaldata", "addresssearch"), add "_multi" suffix
+3. If user mentions a branch (like "RC1", "RC2", "RC3", "RC4"), include it in the path
+4. Always prefix with "scimarketplace/"
+5. Use forward slashes to separate folder levels
+6. Convert spaces to underscores in folder names
+
+Examples:
+- "folder quote and sub folder RC1" → "scimarketplace/quote_multi/RC1"
+- "folder externaldata and sub folder RC2" → "scimarketplace/externaldata_multi/RC2"
+- "folder addresssearch and sub folder RC3" → "scimarketplace/addresssearch_multi/RC3"
+- "folder deploy-all" → "scimarketplace/deploy-all"
+- "for scimarketplace and folder quote and sub folder RC1" → "scimarketplace/quote_multi/RC1"
+
+Return ONLY the folder path, nothing else. No explanations, no quotes, just the path."""
+
+        messages = [{"role": "user", "content": prompt}]
+        response = router.chat(messages)
+        
+        # Clean the response
+        folder_path = response.strip().replace('"', '').replace("'", "")
+        
+        # Validate the response
+        if folder_path and folder_path.startswith("scimarketplace/"):
+            debug_logger.info(f"LLM extracted folder path: {folder_path}")
+            return folder_path
+        else:
+            debug_logger.warning(f"LLM returned invalid folder path: {folder_path}")
+            # Fallback to regex-based extraction
+            return _extract_folder_path_with_regex(query)
+            
+    except Exception as e:
+        debug_logger.error(f"LLM folder path extraction failed: {e}")
+        # Fallback to regex-based extraction
+        return _extract_folder_path_with_regex(query)
+
+def _extract_folder_path_with_regex(query: str) -> str:
+    """Fallback regex-based folder path extraction"""
+    debug_logger.info("Using regex fallback for folder path extraction")
+    
+    # Handle deploy-all case
+    if "deploy-all" in query.lower():
+        return "scimarketplace/deploy-all"
+    
+    # Extract repository and branch using regex (case-insensitive search but preserve case)
+    # Pattern: folder <repo> and sub folder <branch>
+    pattern = r"folder\s+([a-zA-Z0-9_]+)(?:\s+and\s+sub\s+folder\s+([a-zA-Z0-9_]+))?"
+    match = re.search(pattern, query, re.IGNORECASE)
+    
+    if match:
+        repo = match.group(1)
+        branch = match.group(2)
+        
+        # Add _multi suffix if not present
+        if not repo.endswith("_multi"):
+            repo += "_multi"
+        
+        if branch:
+            return f"scimarketplace/{repo}/{branch}"
+        else:
+            return f"scimarketplace/{repo}"
+    
+    # Fallback to default
+    return "scimarketplace/deploy-all"
 
 def interactive_jenkins(query: str):
     """Handle Jenkins commands in interactive mode"""
@@ -33,12 +118,8 @@ def interactive_jenkins(query: str):
             number_match = re.search(r"(\d+)\s*(?:builds?|jobs?)", lower_query)
             num_builds = int(number_match.group(1)) if number_match else 5
             
-            # Extract folder
-            if "deploy-all" in lower_query:
-                folder = "scimarketplace/deploy-all"
-            else:
-                folder_match = re.search(r"folder\s+([a-zA-Z0-9_/]+)", lower_query)
-                folder = folder_match.group(1) if folder_match else "scimarketplace/deploy-all"
+            # Extract folder using LLM for better natural language understanding
+            folder = _extract_folder_path_with_llm(query)
             
             debug_logger.info(f"Build status query: {num_builds} builds from {folder}")
             console.print(f"[cyan]🔍 Getting last {num_builds} build status from '{folder}'...[/cyan]")
@@ -90,11 +171,11 @@ def interactive_jenkins(query: str):
                 table.add_column("Duration", style="magenta")
                 
                 for build in recent_builds:
-                    status_color = "green" if build["status"] == "SUCCESS" else "red" if build["status"] in ["FAILURE", "UNSTABLE", "ABORTED"] else "yellow"
+                    status_color = "green" if build["result"] == "SUCCESS" else "red" if build["result"] in ["FAILURE", "UNSTABLE", "ABORTED"] else "yellow"
                     table.add_row(
                         build["job_name"],
                         str(build["number"]),
-                        f"[{status_color}]{build['status']}[/{status_color}]",
+                        f"[{status_color}]{build['result']}[/{status_color}]",
                         build["timestamp"].strftime("%Y-%m-%d %H:%M:%S"),
                         f"{build['duration']/1000:.1f}s" if build['duration'] else "N/A"
                     )
@@ -105,12 +186,8 @@ def interactive_jenkins(query: str):
                 
         # Check for failed jobs queries
         elif any(keyword in lower_query for keyword in ["failed", "failure", "broken", "error"]):
-            if "deploy-all" in lower_query:
-                folder = "scimarketplace/deploy-all"
-            else:
-                # Try to extract folder from query
-                folder_match = re.search(r"folder\s+([a-zA-Z0-9_/]+)", lower_query)
-                folder = folder_match.group(1) if folder_match else "scimarketplace/deploy-all"
+            # Extract folder using LLM for better natural language understanding
+            folder = _extract_folder_path_with_llm(query)
             
             # Extract hours
             hours_match = re.search(r"(\d+)\s*hours?", lower_query)
@@ -122,11 +199,8 @@ def interactive_jenkins(query: str):
             
         # Check for running jobs queries
         elif any(keyword in lower_query for keyword in ["running", "executing", "building", "in progress"]):
-            if "deploy-all" in lower_query:
-                folder = "scimarketplace/deploy-all"
-            else:
-                folder_match = re.search(r"folder\s+([a-zA-Z0-9_/]+)", lower_query)
-                folder = folder_match.group(1) if folder_match else "scimarketplace/deploy-all"
+            # Extract folder using LLM for better natural language understanding
+            folder = _extract_folder_path_with_llm(query)
             
             console.print(f"[cyan]🔍 Searching for running jobs in '{folder}'...[/cyan]")
             running_jobs = jenkins.find_running_jobs_in_folder(folder)

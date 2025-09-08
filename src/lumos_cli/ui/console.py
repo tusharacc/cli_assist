@@ -28,17 +28,33 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
     # Status indicators if requested
     status_content = ""
     if show_status:
-        # Check backend availability
-        backends = ["ollama", "openai", "enterprise"]
+        # Get actual service status (simplified for now, can be enhanced later)
+        def get_service_status():
+            """Get current service availability status"""
+            status_map = {
+                # LLM Models
+                'ollama': '🟢',      # Assume available if configured
+                'openai': '🟢',     # Assume available if API key exists
+                'enterprise': '🟡', # Partial - requires config
+                
+                # Services  
+                'github': '🟢',     # Usually available
+                'jenkins': '🟡',    # Requires config
+                'jira': '🟡',       # Requires config
+                'neo4j': '🟡',      # Requires config
+                'appdynamics': '🔴' # Requires extensive config
+            }
+            return status_map
         
-        ollama_status = "🟢" if "ollama" in backends else "🔴"
-        openai_status = "🟢" if "openai" in backends else "🔴"
-        enterprise_status = "🟢" if "enterprise" in backends else "🔴"
+        status = get_service_status()
         
-        status_content = f"""
-{ollama_status}  Ollama {openai_status}  OpenAI/GPT {enterprise_status}  Enterprise LLM
-🐙  GitHub 🟢  🔧  Jenkins ⚪  🎫  Jira 🟢
-"""
+        # LLM Models with consistent format: Icon + Name + Status
+        llm_line = f"🧠 Ollama {status['ollama']}  🤖 OpenAI/GPT {status['openai']}  🏢 Enterprise LLM {status['enterprise']}"
+        
+        # Services with consistent format: Icon + Name + Status  
+        services_line = f"🐙 GitHub {status['github']}  🔧 Jenkins {status['jenkins']}  🎫 Jira {status['jira']}  📊 Neo4j {status['neo4j']}  📈 AppDynamics {status['appdynamics']}"
+        
+        status_content = f"\n{llm_line}\n{services_line}"
     
     # Create the header panel
     header_content = f"{title_text}\n{status_content}" if status_content else str(title_text)

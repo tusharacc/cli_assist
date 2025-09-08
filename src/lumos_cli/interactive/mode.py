@@ -7,7 +7,7 @@ import re
 from rich.console import Console
 from ..core import LLMRouter, EmbeddingDB, HistoryManager
 from ..core.persona_manager import PersonaManager
-from ..ui import console, show_footer
+from ..ui import console, show_footer, display_claude_style_prompt
 from .intent_detection import detect_intent
 from .handlers import (
     interactive_github, interactive_jenkins, interactive_jira,
@@ -41,7 +41,7 @@ def interactive_mode():
     
     while True:
         try:
-            user_input = input("🤖 You: ").strip()
+            user_input = display_claude_style_prompt()
             
             if not user_input:
                 continue

@@ -50,9 +50,11 @@ def interactive_neo4j(query: str):
             handle_impact_analysis(client, detection_result.extracted_values)
         elif detection_result.action == 'query':
             handle_custom_query(client, detection_result.extracted_values)
+        elif detection_result.action == 'llm_query':
+            handle_llm_generated_query(client, query)
         else:
-            # Fallback to original logic for class/method analysis
-            handle_class_method_analysis(client, query)
+            # Fallback to LLM-generated query for complex natural language queries
+            handle_llm_generated_query(client, query)
         
         client.close()
         
@@ -189,6 +191,75 @@ def handle_custom_query(client: Neo4jClient, extracted_values: dict):
         
         if len(result) > 10:
             console.print(f"\n[dim]... and {len(result) - 10} more records[/dim]")
+    else:
+        console.print("[yellow]No results found[/yellow]")
+
+def handle_llm_generated_query(client: Neo4jClient, user_intent: str):
+    """Handle LLM-generated Cypher queries based on natural language"""
+    console.print(f"[bold]🤖 Generating Cypher query using Enterprise LLM...[/bold]")
+    console.print(f"[dim]Intent: {user_intent}[/dim]")
+    
+    # Generate and execute query using LLM
+    result = client.execute_llm_generated_query(user_intent)
+    
+    if not result['success']:
+        console.print(f"[red]❌ Failed to generate or execute query: {result['error']}[/red]")
+        return
+    
+    query = result['query']
+    results = result['results']
+    schema_info = result['schema_info']
+    
+    # Display the generated query
+    console.print(f"\n[bold]🔍 Generated Cypher Query:[/bold]")
+    console.print(f"[dim]{query}[/dim]")
+    
+    # Display schema information
+    if schema_info:
+        console.print(f"\n[bold]📊 Schema Context:[/bold]")
+        console.print(f"[dim]Labels: {', '.join(schema_info.get('node_labels', [])[:5])}[/dim]")
+        console.print(f"[dim]Relationships: {', '.join(schema_info.get('relationship_types', [])[:5])}[/dim]")
+    
+    if results:
+        console.print(f"\n[green]✅ Query executed successfully. Found {len(results)} records.[/green]")
+        
+        # Display results in a table format if possible
+        if results and isinstance(results[0], dict):
+            # Try to create a table
+            try:
+                table = Table(title=f"Query Results ({len(results)})")
+                
+                # Get column names from first record
+                columns = list(results[0].keys())
+                for col in columns[:6]:  # Limit to 6 columns for readability
+                    table.add_column(col, style="cyan")
+                
+                # Add rows
+                for record in results[:20]:  # Show first 20 records
+                    row_data = []
+                    for col in columns[:6]:
+                        value = record.get(col, 'N/A')
+                        # Truncate long values
+                        if isinstance(value, str) and len(value) > 50:
+                            value = value[:47] + "..."
+                        row_data.append(str(value))
+                    table.add_row(*row_data)
+                
+                console.print(table)
+                
+                if len(results) > 20:
+                    console.print(f"\n[dim]... and {len(results) - 20} more records[/dim]")
+                    
+            except Exception as e:
+                # Fallback to simple display
+                console.print(f"[yellow]⚠️ Could not format as table: {e}[/yellow]")
+                for i, record in enumerate(results[:10]):
+                    console.print(f"\n[bold]Record {i+1}:[/bold]")
+                    for key, value in record.items():
+                        console.print(f"  {key}: {value}")
+                
+                if len(results) > 10:
+                    console.print(f"\n[dim]... and {len(results) - 10} more records[/dim]")
     else:
         console.print("[yellow]No results found[/yellow]")
 

@@ -517,3 +517,207 @@ class Neo4jClient:
         else:
             debug_logger.log_function_return("Neo4jClient.get_repository_stats", "No stats found")
             return {}
+    
+    def get_schema_info(self) -> Dict:
+        """Get comprehensive schema information for LLM query generation"""
+        debug_logger.log_function_call("Neo4jClient.get_schema_info")
+        
+        schema_info = {
+            'node_labels': [],
+            'relationship_types': [],
+            'node_properties': {},
+            'relationship_properties': {},
+            'constraints': [],
+            'indexes': []
+        }
+        
+        try:
+            # Get node labels
+            labels_query = "CALL db.labels()"
+            labels_result = self.execute_query(labels_query)
+            if labels_result:
+                schema_info['node_labels'] = [record.get('label', '') for record in labels_result]
+            
+            # Get relationship types
+            rel_types_query = "CALL db.relationshipTypes()"
+            rel_types_result = self.execute_query(rel_types_query)
+            if rel_types_result:
+                schema_info['relationship_types'] = [record.get('relationshipType', '') for record in rel_types_result]
+            
+            # Get node properties for each label
+            for label in schema_info['node_labels']:
+                if label:  # Skip empty labels
+                    props_query = f"CALL db.propertyKeys() YIELD propertyKey MATCH (n:`{label}`) RETURN DISTINCT propertyKey, count(n) as count ORDER BY count DESC"
+                    props_result = self.execute_query(props_query)
+                    if props_result:
+                        schema_info['node_properties'][label] = [
+                            {'property': record.get('propertyKey', ''), 'count': record.get('count', 0)}
+                            for record in props_result
+                        ]
+            
+            # Get constraints
+            constraints_query = "CALL db.constraints()"
+            constraints_result = self.execute_query(constraints_query)
+            if constraints_result:
+                schema_info['constraints'] = [
+                    {
+                        'name': record.get('name', ''),
+                        'description': record.get('description', ''),
+                        'type': record.get('type', '')
+                    }
+                    for record in constraints_result
+                ]
+            
+            # Get indexes
+            indexes_query = "CALL db.indexes()"
+            indexes_result = self.execute_query(indexes_query)
+            if indexes_result:
+                schema_info['indexes'] = [
+                    {
+                        'name': record.get('name', ''),
+                        'state': record.get('state', ''),
+                        'type': record.get('type', ''),
+                        'labelsOrTypes': record.get('labelsOrTypes', [])
+                    }
+                    for record in indexes_result
+                ]
+            
+            debug_logger.log_function_return("Neo4jClient.get_schema_info", f"Schema extracted: {len(schema_info['node_labels'])} labels, {len(schema_info['relationship_types'])} relationship types")
+            return schema_info
+            
+        except Exception as e:
+            debug_logger.error(f"Failed to extract schema: {e}")
+            debug_logger.log_function_return("Neo4jClient.get_schema_info", "Failed")
+            return schema_info
+    
+    def generate_cypher_query(self, user_intent: str, schema_info: Dict = None) -> str:
+        """Generate Cypher query using enterprise LLM based on user intent and schema"""
+        debug_logger.log_function_call("Neo4jClient.generate_cypher_query", kwargs={"user_intent": user_intent})
+        
+        if not schema_info:
+            schema_info = self.get_schema_info()
+        
+        # Import here to avoid circular imports
+        from ..core.router import LLMRouter
+        
+        router = LLMRouter(backend="enterprise_llm")
+        
+        # Create schema context for the LLM
+        schema_context = self._format_schema_for_llm(schema_info)
+        
+        prompt = f"""You are a Neo4j Cypher query expert. Generate a Cypher query based on the user's intent and the provided schema.
+
+User Intent: "{user_intent}"
+
+Schema Information:
+{schema_context}
+
+Instructions:
+1. Generate a valid Cypher query that fulfills the user's intent
+2. Use appropriate MATCH, WHERE, RETURN clauses
+3. Include proper relationship patterns
+4. Use LIMIT when appropriate to avoid large result sets
+5. Make the query efficient and readable
+6. Return ONLY the Cypher query, no explanations or markdown formatting
+
+Example outputs:
+- For "find all classes": "MATCH (c:Class) RETURN c.name as class_name, c.repository as repository ORDER BY c.name"
+- For "dependencies of UserService": "MATCH (c:Class {{name: 'UserService'}})-[:DEPENDS_ON]->(dep:Class) RETURN dep.name as dependency, dep.repository as repository"
+
+Cypher Query:"""
+        
+        try:
+            response = router._chat_enterprise_llm(prompt)
+            if response and response.strip():
+                query = response.strip()
+                # Remove any markdown formatting if present
+                if query.startswith('```'):
+                    lines = query.split('\n')
+                    query = '\n'.join(lines[1:-1]) if len(lines) > 2 else query
+                
+                debug_logger.log_function_return("Neo4jClient.generate_cypher_query", f"Generated query: {query[:100]}...")
+                return query
+            else:
+                debug_logger.log_function_return("Neo4jClient.generate_cypher_query", "No response from LLM")
+                return ""
+                
+        except Exception as e:
+            debug_logger.error(f"Failed to generate Cypher query: {e}")
+            debug_logger.log_function_return("Neo4jClient.generate_cypher_query", "Failed")
+            return ""
+    
+    def _format_schema_for_llm(self, schema_info: Dict) -> str:
+        """Format schema information for LLM consumption"""
+        formatted = []
+        
+        # Node labels
+        if schema_info.get('node_labels'):
+            formatted.append("Node Labels:")
+            for label in schema_info['node_labels']:
+                if label:
+                    formatted.append(f"  - {label}")
+        
+        # Relationship types
+        if schema_info.get('relationship_types'):
+            formatted.append("\nRelationship Types:")
+            for rel_type in schema_info['relationship_types']:
+                if rel_type:
+                    formatted.append(f"  - {rel_type}")
+        
+        # Node properties
+        if schema_info.get('node_properties'):
+            formatted.append("\nNode Properties:")
+            for label, properties in schema_info['node_properties'].items():
+                if properties:
+                    prop_list = [f"{prop['property']} (count: {prop['count']})" for prop in properties[:5]]
+                    formatted.append(f"  {label}: {', '.join(prop_list)}")
+        
+        # Constraints
+        if schema_info.get('constraints'):
+            formatted.append("\nConstraints:")
+            for constraint in schema_info['constraints'][:3]:  # Show first 3
+                formatted.append(f"  - {constraint.get('description', 'Unknown constraint')}")
+        
+        return '\n'.join(formatted)
+    
+    def execute_llm_generated_query(self, user_intent: str) -> Dict:
+        """Generate and execute a Cypher query using LLM, return results with metadata"""
+        debug_logger.log_function_call("Neo4jClient.execute_llm_generated_query", kwargs={"user_intent": user_intent})
+        
+        # Get schema information
+        schema_info = self.get_schema_info()
+        
+        # Generate query using LLM
+        query = self.generate_cypher_query(user_intent, schema_info)
+        
+        if not query:
+            debug_logger.log_function_return("Neo4jClient.execute_llm_generated_query", "No query generated")
+            return {
+                'success': False,
+                'error': 'Failed to generate query',
+                'query': '',
+                'results': [],
+                'schema_info': schema_info
+            }
+        
+        # Execute the generated query
+        try:
+            results = self.execute_query(query)
+            debug_logger.log_function_return("Neo4jClient.execute_llm_generated_query", f"Query executed successfully, {len(results)} results")
+            return {
+                'success': True,
+                'error': None,
+                'query': query,
+                'results': results,
+                'schema_info': schema_info
+            }
+        except Exception as e:
+            debug_logger.error(f"Failed to execute generated query: {e}")
+            debug_logger.log_function_return("Neo4jClient.execute_llm_generated_query", "Query execution failed")
+            return {
+                'success': False,
+                'error': str(e),
+                'query': query,
+                'results': [],
+                'schema_info': schema_info
+            }

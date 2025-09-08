@@ -266,7 +266,7 @@ User Query: "{query}"
 
 Return a JSON response with the following structure:
 {{
-    "action": "list_repositories|stats|dependencies|impact|relationships|query|unknown",
+    "action": "list_repositories|stats|dependencies|impact|relationships|query|llm_query|unknown",
     "confidence": 0.0-1.0,
     "extracted_values": {{
         "class_name": "ClassName",
@@ -285,9 +285,10 @@ Rules:
 4. For impact: action="impact", extract class_name, method_name, depth
 5. For relationships: action="relationships", extract class_name, method_name
 6. For custom query: action="query", extract the Cypher query
-7. Extract class names (PascalCase) and method names (camelCase/snake_case)
-8. Extract depth from "2 levels", "depth 3", etc.
-9. Set confidence based on clarity of the query
+7. For complex natural language: action="llm_query" when user asks complex questions that need LLM-generated queries
+8. Extract class names (PascalCase) and method names (camelCase/snake_case)
+9. Extract depth from "2 levels", "depth 3", etc.
+10. Set confidence based on clarity of the query
 
 Examples:
 - "list all repositories" → {{"action": "list_repositories", "confidence": 0.9, "extracted_values": {{}}}}
@@ -296,6 +297,9 @@ Examples:
 - "impact analysis for method validateUser" → {{"action": "impact", "confidence": 0.9, "extracted_values": {{"method_name": "validateUser"}}}}
 - "relationships for PaymentController" → {{"action": "relationships", "confidence": 0.8, "extracted_values": {{"class_name": "PaymentController"}}}}
 - "MATCH (n) RETURN n LIMIT 10" → {{"action": "query", "confidence": 0.9, "extracted_values": {{"query": "MATCH (n) RETURN n LIMIT 10"}}}}
+- "find all classes that depend on UserService through 2 levels" → {{"action": "llm_query", "confidence": 0.9, "extracted_values": {{}}}}
+- "what classes are most connected in the graph" → {{"action": "llm_query", "confidence": 0.9, "extracted_values": {{}}}}
+- "show me the relationship path between PaymentService and UserService" → {{"action": "llm_query", "confidence": 0.9, "extracted_values": {{}}}}
 
 Return ONLY the JSON response, no other text."""
         

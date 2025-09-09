@@ -139,7 +139,7 @@ def create_header(console: Console, title: str = "Lumos CLI", subtitle: str = No
                 try:
                     with open(appdynamics_config_file, 'r') as f:
                         config_data = json.load(f)
-                        appdynamics_configured = bool(config_data.get('controller_url', '').strip())
+                        appdynamics_configured = bool(config_data.get('base_url', '').strip())
                 except:
                     pass
             status_map['appdynamics'] = '🟢' if appdynamics_configured else '🔴'

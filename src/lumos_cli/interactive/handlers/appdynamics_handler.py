@@ -26,7 +26,7 @@ def interactive_appdynamics(query: str):
             return
         
         client = AppDynamicsClient(
-            config.controller_url,
+            config.base_url,
             config.client_id,
             config.client_secret
         )

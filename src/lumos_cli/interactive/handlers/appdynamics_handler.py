@@ -67,15 +67,16 @@ def interactive_appdynamics(query: str):
                     if servers:
                         console.print(f"[blue]Found {len(servers)} servers[/blue]")
                         
-                        from rich.table import Table
-                        table = Table(title=f"Resource Utilization - {app_name}")
-                        table.add_column("Server", style="cyan")
-                        table.add_column("CPU %", style="yellow")
-                        table.add_column("Memory %", style="green")
-                        table.add_column("Disk %", style="magenta")
-                        table.add_column("Status", style="blue")
+                        # Collect metrics for all servers
+                        server_metrics = []
+                        total_cpu = 0
+                        total_memory = 0
+                        total_disk = 0
+                        critical_servers = 0
+                        high_servers = 0
+                        normal_servers = 0
                         
-                        for server in servers[:10]:  # Show first 10 servers
+                        for server in servers:
                             server_id = server.get('id')
                             server_name = server.get('name', 'Unknown')
                             
@@ -92,23 +93,136 @@ def interactive_appdynamics(query: str):
                                 memory_usage = memory.get('usage_percent', 0) or 0
                                 disk_usage = disk.get('usage_percent', 0) or 0
                                 
-                                # Determine overall status
+                                # Determine server status
                                 if cpu_usage > 95 or memory_usage > 95 or disk_usage > 95:
                                     status = "🔴 Critical"
+                                    critical_servers += 1
                                 elif cpu_usage > 80 or memory_usage > 80 or disk_usage > 80:
                                     status = "🟡 High"
+                                    high_servers += 1
                                 else:
                                     status = "🟢 Normal"
+                                    normal_servers += 1
                                 
-                                table.add_row(
-                                    server_name,
-                                    f"{cpu_usage:.1f}%",
-                                    f"{memory_usage:.1f}%",
-                                    f"{disk_usage:.1f}%",
-                                    status
-                                )
+                                # Store metrics for summary
+                                server_metrics.append({
+                                    'name': server_name,
+                                    'cpu': cpu_usage,
+                                    'memory': memory_usage,
+                                    'disk': disk_usage,
+                                    'status': status
+                                })
+                                
+                                # Add to totals for averages
+                                total_cpu += cpu_usage
+                                total_memory += memory_usage
+                                total_disk += disk_usage
+                        
+                        # Calculate overall application health
+                        total_servers = len(server_metrics)
+                        avg_cpu = total_cpu / total_servers if total_servers > 0 else 0
+                        avg_memory = total_memory / total_servers if total_servers > 0 else 0
+                        avg_disk = total_disk / total_servers if total_servers > 0 else 0
+                        
+                        # Determine overall application health
+                        if critical_servers > 0:
+                            overall_status = "🔴 Critical"
+                            health_score = max(0, 100 - (critical_servers * 20))
+                        elif high_servers > total_servers * 0.3:  # More than 30% high
+                            overall_status = "🟡 Warning"
+                            health_score = 70
+                        else:
+                            overall_status = "🟢 Healthy"
+                            health_score = 95
+                        
+                        # Display Application Health Summary
+                        from rich.panel import Panel
+                        from rich.table import Table
+                        
+                        # Health Summary Panel
+                        health_summary = f"""
+[bold]Application Health Summary[/bold]
+Status: {overall_status} | Health Score: {health_score}/100
+Servers: {total_servers} total | {normal_servers} 🟢 | {high_servers} 🟡 | {critical_servers} 🔴
+Average Usage: CPU {avg_cpu:.1f}% | Memory {avg_memory:.1f}% | Disk {avg_disk:.1f}%
+                        """
+                        
+                        console.print(Panel(health_summary.strip(), title=f"🏥 {app_name} Health", border_style="green" if overall_status == "🟢 Healthy" else "yellow" if overall_status == "🟡 Warning" else "red"))
+                        
+                        # Get Business Transaction Health
+                        try:
+                            transactions = client.get_business_transactions(app_id)
+                            if transactions:
+                                total_error_rate = 0
+                                total_response_time = 0
+                                healthy_transactions = 0
+                                
+                                for tx in transactions:
+                                    error_rate = tx.get('errorRate', 0) or 0
+                                    response_time = tx.get('avgResponseTime', 0) or 0
+                                    
+                                    total_error_rate += error_rate
+                                    total_response_time += response_time
+                                    
+                                    if error_rate < 1 and response_time < 1000:
+                                        healthy_transactions += 1
+                                
+                                avg_error_rate = total_error_rate / len(transactions) if transactions else 0
+                                avg_response_time = total_response_time / len(transactions) if transactions else 0
+                                
+                                # Business Transaction Summary
+                                bt_summary = f"""
+[bold]Business Transaction Health[/bold]
+Transactions: {len(transactions)} total | {healthy_transactions} healthy
+Average Error Rate: {avg_error_rate:.2f}% | Average Response Time: {avg_response_time:.0f}ms
+                                """
+                                
+                                console.print(Panel(bt_summary.strip(), title="💼 Business Transactions", border_style="green" if avg_error_rate < 1 else "yellow" if avg_error_rate < 5 else "red"))
+                        except Exception as e:
+                            console.print(f"[dim]Business transaction data unavailable: {e}[/dim]")
+                        
+                        # Get Application Alerts
+                        try:
+                            alerts = client.get_alerts(app_id=app_id)
+                            if alerts:
+                                critical_alerts = len([a for a in alerts if a.get('severity') == 'CRITICAL'])
+                                warning_alerts = len([a for a in alerts if a.get('severity') == 'WARNING'])
+                                
+                                alert_summary = f"""
+[bold]Active Alerts[/bold]
+Total: {len(alerts)} | Critical: {critical_alerts} | Warnings: {warning_alerts}
+                                """
+                                
+                                console.print(Panel(alert_summary.strip(), title="🚨 Alerts", border_style="red" if critical_alerts > 0 else "yellow" if warning_alerts > 0 else "green"))
+                            else:
+                                console.print(Panel("[green]✅ No active alerts[/green]", title="🚨 Alerts", border_style="green"))
+                        except Exception as e:
+                            console.print(f"[dim]Alert data unavailable: {e}[/dim]")
+                        
+                        # Show detailed server table (first 10 servers)
+                        if len(server_metrics) > 10:
+                            console.print(f"\n[dim]Showing first 10 servers out of {len(server_metrics)} total[/dim]")
+                        
+                        table = Table(title=f"Server Details - {app_name}")
+                        table.add_column("Server", style="cyan")
+                        table.add_column("CPU %", style="yellow")
+                        table.add_column("Memory %", style="green")
+                        table.add_column("Disk %", style="magenta")
+                        table.add_column("Status", style="blue")
+                        
+                        for server in server_metrics[:10]:  # Show first 10 servers
+                            table.add_row(
+                                server['name'],
+                                f"{server['cpu']:.1f}%",
+                                f"{server['memory']:.1f}%",
+                                f"{server['disk']:.1f}%",
+                                server['status']
+                            )
                         
                         console.print(table)
+                        
+                        if len(server_metrics) > 10:
+                            console.print(f"[dim]... and {len(server_metrics) - 10} more servers[/dim]")
                     else:
                         console.print("[yellow]No servers found for this application[/yellow]")
                 else:

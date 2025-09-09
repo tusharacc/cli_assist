@@ -402,7 +402,11 @@ class AppDynamicsClient:
             if severity:
                 params['severity'] = severity.upper()
             
-            response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/events", params=params)
+            # Use the correct alerts endpoint
+            if app_id:
+                response = self.session.get(f"{self.base_url}/controller/rest/applications/{app_id}/events", params=params)
+            else:
+                response = self.session.get(f"{self.base_url}/controller/rest/events", params=params)
             response.raise_for_status()
             alerts = response.json()
             

@@ -13,8 +13,22 @@ except ImportError:
         def is_enterprise_configured(self): return False
     config = FallbackConfig()
 
-REST_API_URL = config.get('llm.rest_api_url') or os.getenv("LLM_API_URL")
-REST_API_KEY = config.get('llm.rest_api_key') or os.getenv("LLM_API_KEY")
+def _load_openai_config():
+    """Load OpenAI configuration from JSON file"""
+    try:
+        from ..config.openai_config import OpenAIConfigManager
+        manager = OpenAIConfigManager()
+        openai_config = manager.load_config()
+        if openai_config:
+            return openai_config.api_url, openai_config.api_key
+    except Exception:
+        pass
+    return None, None
+
+# Load OpenAI configuration
+_openai_url, _openai_key = _load_openai_config()
+REST_API_URL = config.get('llm.rest_api_url') or _openai_url or os.getenv("LLM_API_URL")
+REST_API_KEY = config.get('llm.rest_api_key') or _openai_key or os.getenv("LLM_API_KEY")
 OLLAMA_URL = config.get('llm.ollama_url') or "http://localhost:11434/api/chat"
 
 class TaskType(Enum):

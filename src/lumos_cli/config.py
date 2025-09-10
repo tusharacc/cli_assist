@@ -347,6 +347,18 @@ class LumosConfig:
         url = self.get('llm.rest_api_url')
         key = self.get('llm.rest_api_key')
         
+        # Also check OpenAI JSON config file
+        if not (url and key):
+            try:
+                from .openai_config import OpenAIConfigManager
+                manager = OpenAIConfigManager()
+                openai_config = manager.load_config()
+                if openai_config and openai_config.api_key and openai_config.api_url:
+                    url = openai_config.api_url
+                    key = openai_config.api_key
+            except Exception:
+                pass
+        
         if debug:
             print(f"🔍 OpenAI API Configuration Check:")
             print(f"   URL: {url or 'Not set'}")

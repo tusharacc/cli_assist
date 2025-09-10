@@ -17,14 +17,16 @@ lumos-cli --help
 
 ## ✨ Key Features
 
-- **🤖 Multi-LLM Support**: OpenAI GPT-3.5/4, Ollama (devstral, llama3.2), Hugging Face
+- **🤖 Multi-LLM Support**: OpenAI GPT-3.5/4, Ollama (devstral, llama3.2), Hugging Face, Enterprise LLM
 - **🔗 Enterprise Integrations**: GitHub, Jenkins, Jira, Neo4j, AppDynamics
-- **🧠 Intelligent Intent Detection**: Hybrid LLM + regex approach
-- **💬 Interactive Mode**: Natural language command processing
-- **🛠️ Code Management**: Generation, editing, testing, analysis
+- **🧠 Unified LLM-Based Keyword Detection**: Intelligent natural language processing for all integrations
+- **💬 Interactive Mode**: Natural language command processing with console clearing
+- **🛠️ Code Management**: Generation, editing, testing, analysis with detailed commit analysis
 - **🔒 Safety Features**: File validation, backup, rollback
 - **📊 Debug Logging**: Centralized logging with platform-specific paths
 - **⚙️ Configuration Management**: Secure credential storage
+- **🔍 Neo4j Graph Analysis**: LLM-generated Cypher queries for complex graph operations
+- **📈 Rich Data Visualization**: Beautiful tables, charts, and formatted output
 
 ## 🏗️ Architecture
 
@@ -58,6 +60,7 @@ src/lumos_cli/
 ### 🔧 Integrations
 - [GitHub Integration](docs/GITHUB_INTEGRATION.md) - GitHub API integration and PR/commit management
 - [Jenkins Integration](docs/JENKINS_INTEGRATION.md) - Jenkins build monitoring and failure analysis
+- [Neo4j Integration](docs/NEO4J_INTEGRATION.md) - Graph database analysis with LLM-generated queries
 - [AppDynamics Integration](docs/APPDYNAMICS_TEST_README.md) - Application performance monitoring
 
 ### 🧠 AI & Intelligence
@@ -80,6 +83,9 @@ lumos-cli
 # "get me the latest PR from microsoft/vscode"
 # "show failed Jenkins builds in the last 4 hours"
 # "analyze commit abc123def from scimarketplace/externaldata"
+# "find all classes that depend on UserService through 2 levels"
+# "list all repositories in Neo4j"
+# "what classes are most connected in the graph"
 ```
 
 ### Command Line

@@ -79,3 +79,71 @@ def appdynamics_set_default(application_name: str = None):
             console.print("[yellow]No default application set[/yellow]")
             console.print("\n[bold]To set a default application:[/bold]")
             console.print("   [cyan]lumos-cli appdynamics set-default \"Application Name\"[/cyan]")
+
+def appdynamics_debug(application_name: str = None, server_id: int = None):
+    """Debug AppDynamics metrics to see what's available
+    
+    Examples:
+        lumos-cli appdynamics debug  # Debug default application
+        lumos-cli appdynamics debug "SCI Market Place PROD Azure" 12345
+    """
+    from ..config.appdynamics_config import AppDynamicsConfigManager
+    from ..clients.appdynamics_client import AppDynamicsClient
+    
+    config_manager = AppDynamicsConfigManager()
+    
+    if not config_manager.is_configured():
+        console.print("[red]❌ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/red]")
+        return
+    
+    config = config_manager.load_config()
+    client = AppDynamicsClient(config.base_url, config.client_id, config.client_secret)
+    
+    if not client.test_connection():
+        console.print("[red]❌ Failed to connect to AppDynamics[/red]")
+        return
+    
+    # Determine application
+    if not application_name:
+        application_name = config_manager.get_default_application()
+        if not application_name:
+            console.print("[yellow]No application specified and no default set. Available applications:[/yellow]")
+            applications = client.get_applications()
+            if applications:
+                for i, app in enumerate(applications[:10]):
+                    console.print(f"  {i+1}. {app.get('name', 'Unknown')}")
+                return
+            else:
+                console.print("[red]No applications found[/red]")
+                return
+        else:
+            console.print(f"[cyan]Using default application: {application_name}[/cyan]")
+    
+    # Get application ID
+    app_id = client.get_application_id(application_name)
+    if not app_id:
+        console.print(f"[red]❌ Application '{application_name}' not found[/red]")
+        return
+    
+    console.print(f"[green]✅ Found application ID: {app_id}[/green]")
+    
+    # Get servers
+    servers = client.get_servers(app_id)
+    if not servers:
+        console.print("[red]❌ No servers found for this application[/red]")
+        return
+    
+    # Use specified server or first available
+    if server_id:
+        target_server = next((s for s in servers if s.get('id') == server_id), None)
+        if not target_server:
+            console.print(f"[red]❌ Server ID {server_id} not found[/red]")
+            return
+    else:
+        target_server = servers[0]
+        server_id = target_server.get('id')
+    
+    console.print(f"[cyan]Debugging server: {target_server.get('name', 'Unknown')} (ID: {server_id})[/cyan]")
+    
+    # Run debug
+    client.debug_metrics(app_id, server_id)

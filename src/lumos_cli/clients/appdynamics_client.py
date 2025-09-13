@@ -255,24 +255,59 @@ class AppDynamicsClient:
     def _extract_cpu_metrics(self, cpu_metrics: List[Dict]) -> Dict[str, Any]:
         """Extract CPU metrics from raw data using correct AppDynamics metric names"""
         cpu_data = {}
+        
+        # Debug: Log all available metric names
+        debug_logger.info(f"Available CPU metrics: {[m.get('metricName', '') for m in cpu_metrics]}")
+        
         for metric in cpu_metrics:
             metric_name = metric.get('metricName', '')
             metric_values = metric.get('metricValues', [])
             
+            # Debug: Log each metric name and value
+            latest_value = self._get_latest_value(metric_values)
+            debug_logger.info(f"CPU metric: '{metric_name}' = {latest_value}")
+            
             # Look for %busy (overall CPU usage)
             if '%busy' in metric_name.lower():
-                cpu_data['usage_percent'] = self._get_latest_value(metric_values)
+                cpu_data['usage_percent'] = latest_value
+                debug_logger.info(f"Found %busy metric: {latest_value}")
             # Look for %System (system CPU time)
             elif '%system' in metric_name.lower():
-                cpu_data['system_time_percent'] = self._get_latest_value(metric_values)
+                cpu_data['system_time_percent'] = latest_value
+                debug_logger.info(f"Found %system metric: {latest_value}")
             # Look for %User (user CPU time)
             elif '%user' in metric_name.lower():
-                cpu_data['user_time_percent'] = self._get_latest_value(metric_values)
-            # Fallback for other CPU metrics
-            elif 'CPU' in metric_name and '%' in metric_name:
+                cpu_data['user_time_percent'] = latest_value
+                debug_logger.info(f"Found %user metric: {latest_value}")
+            # Look for any CPU percentage metric
+            elif 'cpu' in metric_name.lower() and '%' in metric_name.lower():
                 if 'usage_percent' not in cpu_data:  # Use first CPU percentage found as usage
-                    cpu_data['usage_percent'] = self._get_latest_value(metric_values)
+                    cpu_data['usage_percent'] = latest_value
+                    debug_logger.info(f"Found CPU percentage metric: {latest_value}")
+            # Look for any metric with "used" and percentage
+            elif 'used' in metric_name.lower() and '%' in metric_name.lower():
+                if 'usage_percent' not in cpu_data:  # Use first usage percentage found
+                    cpu_data['usage_percent'] = latest_value
+                    debug_logger.info(f"Found usage percentage metric: {latest_value}")
+            # Look for any metric with "utilization" and percentage
+            elif 'utilization' in metric_name.lower() and '%' in metric_name.lower():
+                if 'usage_percent' not in cpu_data:  # Use first utilization percentage found
+                    cpu_data['usage_percent'] = latest_value
+                    debug_logger.info(f"Found utilization percentage metric: {latest_value}")
         
+        # If still no usage_percent found, try to use any percentage value
+        if 'usage_percent' not in cpu_data:
+            for metric in cpu_metrics:
+                metric_name = metric.get('metricName', '')
+                metric_values = metric.get('metricValues', [])
+                latest_value = self._get_latest_value(metric_values)
+                
+                if '%' in metric_name and latest_value is not None:
+                    cpu_data['usage_percent'] = latest_value
+                    debug_logger.info(f"Using fallback CPU metric: {metric_name} = {latest_value}")
+                    break
+        
+        debug_logger.info(f"Final CPU data: {cpu_data}")
         return cpu_data
     
     def _extract_memory_metrics(self, memory_metrics: List[Dict]) -> Dict[str, Any]:
@@ -566,3 +601,92 @@ class AppDynamicsClient:
             )
         
         console.print(table)
+    
+    def debug_metrics(self, app_id: int, server_id: int, duration_in_mins: int = 60):
+        """Debug method to see what metrics are available"""
+        debug_logger.log_function_call("AppDynamicsClient.debug_metrics", kwargs={
+            "app_id": app_id, "server_id": server_id, "duration_in_mins": duration_in_mins
+        })
+        
+        try:
+            # Get all available metrics for this server
+            all_metrics = self.get_server_metrics(app_id, server_id, "Application Infrastructure Performance|Machine Agent|Hardware Resources|*", duration_in_mins)
+            
+            console.print(f"[bold]🔍 Debug: Available metrics for server {server_id}[/bold]")
+            console.print(f"Total metrics found: {len(all_metrics)}")
+            
+            # Group metrics by resource type
+            cpu_metrics = []
+            memory_metrics = []
+            disk_metrics = []
+            network_metrics = []
+            other_metrics = []
+            
+            for metric in all_metrics:
+                metric_name = metric.get('metricName', '')
+                if 'CPU' in metric_name:
+                    cpu_metrics.append(metric)
+                elif 'Memory' in metric_name:
+                    memory_metrics.append(metric)
+                elif 'Disk' in metric_name:
+                    disk_metrics.append(metric)
+                elif 'Network' in metric_name:
+                    network_metrics.append(metric)
+                else:
+                    other_metrics.append(metric)
+            
+            # Display CPU metrics
+            if cpu_metrics:
+                console.print(f"\n[bold cyan]CPU Metrics ({len(cpu_metrics)}):[/bold cyan]")
+                for metric in cpu_metrics:
+                    metric_name = metric.get('metricName', '')
+                    metric_values = metric.get('metricValues', [])
+                    latest_value = self._get_latest_value(metric_values)
+                    console.print(f"  • {metric_name}: {latest_value}")
+            
+            # Display Memory metrics
+            if memory_metrics:
+                console.print(f"\n[bold green]Memory Metrics ({len(memory_metrics)}):[/bold green]")
+                for metric in memory_metrics:
+                    metric_name = metric.get('metricName', '')
+                    metric_values = metric.get('metricValues', [])
+                    latest_value = self._get_latest_value(metric_values)
+                    console.print(f"  • {metric_name}: {latest_value}")
+            
+            # Display Disk metrics
+            if disk_metrics:
+                console.print(f"\n[bold yellow]Disk Metrics ({len(disk_metrics)}):[/bold yellow]")
+                for metric in disk_metrics:
+                    metric_name = metric.get('metricName', '')
+                    metric_values = metric.get('metricValues', [])
+                    latest_value = self._get_latest_value(metric_values)
+                    console.print(f"  • {metric_name}: {latest_value}")
+            
+            # Display Network metrics
+            if network_metrics:
+                console.print(f"\n[bold magenta]Network Metrics ({len(network_metrics)}):[/bold magenta]")
+                for metric in network_metrics:
+                    metric_name = metric.get('metricName', '')
+                    metric_values = metric.get('metricValues', [])
+                    latest_value = self._get_latest_value(metric_values)
+                    console.print(f"  • {metric_name}: {latest_value}")
+            
+            # Display other metrics
+            if other_metrics:
+                console.print(f"\n[bold dim]Other Metrics ({len(other_metrics)}):[/bold dim]")
+                for metric in other_metrics[:10]:  # Show first 10
+                    metric_name = metric.get('metricName', '')
+                    metric_values = metric.get('metricValues', [])
+                    latest_value = self._get_latest_value(metric_values)
+                    console.print(f"  • {metric_name}: {latest_value}")
+                if len(other_metrics) > 10:
+                    console.print(f"  ... and {len(other_metrics) - 10} more")
+            
+            debug_logger.log_function_return("AppDynamicsClient.debug_metrics", "Success")
+            return all_metrics
+            
+        except Exception as e:
+            console.print(f"[red]Debug metrics error: {e}[/red]")
+            debug_logger.error(f"Debug metrics error: {e}")
+            debug_logger.log_function_return("AppDynamicsClient.debug_metrics", "Failed")
+            return []

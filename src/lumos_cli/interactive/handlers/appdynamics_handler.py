@@ -44,6 +44,8 @@ def interactive_appdynamics(query: str):
             
             # Try to extract application name from query
             app_name = None
+            
+            # First, try to find application name in the query
             if 'SCI Market Place PROD Azure' in query:
                 app_name = 'SCI Market Place PROD Azure'
             elif 'SCI Market Place PROD' in query:
@@ -55,6 +57,47 @@ def interactive_appdynamics(query: str):
                     if word.lower() in ['for', 'of', 'in'] and i + 1 < len(words):
                         app_name = ' '.join(words[i+1:])
                         break
+            
+            # If no application found in query, try to use default application
+            if not app_name:
+                default_app = config_manager.get_default_application()
+                if default_app:
+                    app_name = default_app
+                    console.print(f"[dim]Using default application: {app_name}[/dim]")
+                else:
+                    # If no default, show available applications for selection
+                    console.print("[yellow]No application specified. Available applications:[/yellow]")
+                    applications = client.get_applications()
+                    if applications:
+                        from rich.prompt import Prompt
+                        from rich.table import Table
+                        
+                        table = Table(title="Available Applications")
+                        table.add_column("ID", style="cyan")
+                        table.add_column("Name", style="magenta")
+                        table.add_column("Description", style="dim")
+                        
+                        for i, app in enumerate(applications[:10]):
+                            table.add_row(
+                                str(i + 1),
+                                app.get('name', 'Unknown'),
+                                app.get('description', 'No description')[:50] + "..." if len(app.get('description', '')) > 50 else app.get('description', 'No description')
+                            )
+                        console.print(table)
+                        
+                        try:
+                            choice = Prompt.ask("Select application (enter number or name)", default="1")
+                            if choice.isdigit() and 1 <= int(choice) <= len(applications):
+                                app_name = applications[int(choice) - 1].get('name')
+                            else:
+                                # Try to find by name
+                                for app in applications:
+                                    if choice.lower() in app.get('name', '').lower():
+                                        app_name = app.get('name')
+                                        break
+                        except (ValueError, KeyboardInterrupt):
+                            console.print("[yellow]No application selected. Using first available application.[/yellow]")
+                            app_name = applications[0].get('name') if applications else None
             
             if app_name:
                 console.print(f"[cyan]Looking for application: {app_name}[/cyan]")
@@ -215,16 +258,24 @@ Average Usage: CPU {avg_cpu:.1f}% | Memory {avg_memory:.1f}% | Disk {avg_disk:.1
             if applications:
                 console.print(f"[green]✅ {len(applications)} applications monitored[/green]")
                 
+                # Show default application if set
+                default_app = config_manager.get_default_application()
+                if default_app:
+                    console.print(f"[cyan]Default application: {default_app}[/cyan]")
+                
                 # Show first few applications
                 console.print("[dim]Available applications:[/dim]")
                 for app in applications[:5]:
-                    console.print(f"  • {app.get('name', 'Unknown')}")
+                    app_name = app.get('name', 'Unknown')
+                    marker = " (default)" if app_name == default_app else ""
+                    console.print(f"  • {app_name}{marker}")
                 if len(applications) > 5:
                     console.print(f"  ... and {len(applications) - 5} more")
             else:
                 console.print("[yellow]No applications found[/yellow]")
             
             console.print("\n[dim]Usage examples:[/dim]")
+            console.print("  /appdynamics show health  # Uses default application")
             console.print("  /appdynamics show health for SCI Market Place PROD Azure")
             console.print("  /appdynamics give me the application health for SCI Market Place PROD")
         

@@ -49,3 +49,33 @@ def appdynamics_config():
         console.print("   [dim]export APPDYNAMICS_CLIENT_ID=your_client_id[/dim]")
         console.print("   [dim]export APPDYNAMICS_CLIENT_SECRET=your_client_secret[/dim]")
         console.print("2. Use the interactive setup for persistent configuration")
+
+def appdynamics_set_default(application_name: str = None):
+    """Set or view the default application for AppDynamics monitoring
+    
+    Examples:
+        lumos-cli appdynamics set-default "SCI Market Place PROD Azure"
+        lumos-cli appdynamics set-default  # Show current default
+    """
+    from ..config.appdynamics_config import AppDynamicsConfigManager
+    config_manager = AppDynamicsConfigManager()
+    
+    if not config_manager.is_configured():
+        console.print("[red]❌ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/red]")
+        return
+    
+    if application_name:
+        # Set default application
+        if config_manager.set_default_application(application_name):
+            console.print(f"[green]✅ Default application set to: {application_name}[/green]")
+        else:
+            console.print("[red]❌ Failed to set default application[/red]")
+    else:
+        # Show current default
+        default_app = config_manager.get_default_application()
+        if default_app:
+            console.print(f"[cyan]Current default application: {default_app}[/cyan]")
+        else:
+            console.print("[yellow]No default application set[/yellow]")
+            console.print("\n[bold]To set a default application:[/bold]")
+            console.print("   [cyan]lumos-cli appdynamics set-default \"Application Name\"[/cyan]")

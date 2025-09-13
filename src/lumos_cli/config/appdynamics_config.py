@@ -23,6 +23,7 @@ class AppDynamicsConfig:
     client_secret: str
     instance_name: str
     projects: list  # List of project names to monitor
+    default_application: str = ""  # Default application for monitoring
 
 class AppDynamicsConfigManager:
     """Manages AppDynamics configuration"""
@@ -58,7 +59,8 @@ class AppDynamicsConfigManager:
                 client_id=data.get('client_id', ''),
                 client_secret=data.get('client_secret', ''),
                 instance_name=data.get('instance_name', ''),
-                projects=data.get('projects', [])
+                projects=data.get('projects', []),
+                default_application=data.get('default_application', '')
             )
             
             debug_logger.info("AppDynamics config loaded successfully")
@@ -79,7 +81,8 @@ class AppDynamicsConfigManager:
                 'client_id': config_data.client_id,
                 'client_secret': config_data.client_secret,
                 'instance_name': config_data.instance_name,
-                'projects': config_data.projects
+                'projects': config_data.projects,
+                'default_application': config_data.default_application
             }
             
             with open(self.config_file, 'w') as f:
@@ -100,6 +103,26 @@ class AppDynamicsConfigManager:
         """Check if AppDynamics is configured"""
         config = self.load_config()
         return config is not None and bool(config.base_url and config.client_id and config.client_secret)
+    
+    def get_default_application(self) -> Optional[str]:
+        """Get the default application name from config"""
+        config = self.load_config()
+        return config.default_application if config else None
+    
+    def set_default_application(self, application_name: str) -> bool:
+        """Set the default application name"""
+        config = self.load_config()
+        if not config:
+            console.print("[red]❌ AppDynamics not configured. Run 'lumos-cli appdynamics config' first.[/red]")
+            return False
+        
+        config.default_application = application_name
+        if self.save_config(config):
+            console.print(f"[green]✅ Default application set to: {application_name}[/green]")
+            return True
+        else:
+            console.print("[red]❌ Failed to save default application[/red]")
+            return False
     
     def setup_interactive(self) -> Optional[AppDynamicsConfig]:
         """Interactive setup for AppDynamics configuration"""
@@ -132,13 +155,19 @@ class AppDynamicsConfigManager:
             console.print("[yellow]No projects specified. You can add them later.[/yellow]")
             projects = []
         
+        # Get default application
+        console.print("\n[bold]Default Application:[/bold]")
+        console.print("Enter the name of the default application for monitoring (optional)")
+        default_application = Prompt.ask("Default application name", default="")
+        
         # Create config
         config = AppDynamicsConfig(
             base_url=base_url,
             client_id=client_id,
             client_secret=client_secret,
             instance_name=instance_name,
-            projects=projects
+            projects=projects,
+            default_application=default_application
         )
         
         # Test connection

@@ -4,6 +4,7 @@ Command modules for Lumos CLI
 
 from .github import github_clone, github_pr, github_config
 from .jenkins import jenkins_failed_jobs, jenkins_running_jobs, jenkins_repository_jobs, jenkins_build_parameters, jenkins_analyze_failure, jenkins_config
+from .appdynamics import appdynamics_config, appdynamics_set_default
 
 # TODO: Implement remaining command modules
 # from .edit import edit
@@ -23,6 +24,9 @@ __all__ = [
     # Jenkins commands
     'jenkins_failed_jobs', 'jenkins_running_jobs', 'jenkins_repository_jobs', 
     'jenkins_build_parameters', 'jenkins_analyze_failure', 'jenkins_config',
+    
+    # AppDynamics commands
+    'appdynamics_config', 'appdynamics_set_default',
     
     # TODO: Add other commands when implemented
 ]

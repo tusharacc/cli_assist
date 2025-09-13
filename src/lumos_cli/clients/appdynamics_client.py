@@ -165,7 +165,7 @@ class AppDynamicsClient:
             debug_logger.log_function_return("AppDynamicsClient.get_servers", "Failed")
             return []
     
-    def get_server_metrics(self, app_id: int, server_id: int, metric_path: str = "Server|*", duration_in_mins: int = 60) -> List[Dict]:
+    def get_server_metrics(self, app_id: int, server_id: int, metric_path: str = "Application Infrastructure Performance|Machine Agent|Hardware Resources|*", duration_in_mins: int = 60) -> List[Dict]:
         """Get server metrics"""
         debug_logger.log_function_call("AppDynamicsClient.get_server_metrics", kwargs={
             "app_id": app_id, "server_id": server_id, "metric_path": metric_path, "duration_in_mins": duration_in_mins
@@ -197,23 +197,45 @@ class AppDynamicsClient:
             return []
     
     def get_resource_utilization(self, app_id: int, server_id: int, duration_in_mins: int = 60) -> Dict[str, Any]:
-        """Get comprehensive resource utilization for a server"""
+        """Get comprehensive resource utilization for a server
+        
+        Uses correct AppDynamics metric paths:
+        - CPU: Application Infrastructure Performance|Machine Agent|Hardware Resources|CPU|*
+          - %busy (overall CPU usage)
+          - %System (system CPU time)
+          - %User (user CPU time)
+        - Memory: Application Infrastructure Performance|Machine Agent|Hardware Resources|Memory|*
+          - Used % (memory usage percentage)
+          - Used MB (used memory in MB)
+          - Free MB (free memory in MB)
+          - Total MB (total memory in MB)
+        - Disk: Application Infrastructure Performance|Machine Agent|Hardware Resources|Disk|*
+          - Used % (disk usage percentage)
+          - Used GB (used disk space in GB)
+          - Free GB (free disk space in GB)
+          - Total GB (total disk space in GB)
+        - Network: Application Infrastructure Performance|Machine Agent|Hardware Resources|Network|*
+          - Bytes Received/sec (bytes received per second)
+          - Bytes Transmitted/sec (bytes transmitted per second)
+          - Packets Received/sec (packets received per second)
+          - Packets Transmitted/sec (packets transmitted per second)
+        """
         debug_logger.log_function_call("AppDynamicsClient.get_resource_utilization", kwargs={
             "app_id": app_id, "server_id": server_id, "duration_in_mins": duration_in_mins
         })
         
         try:
-            # Get CPU metrics
-            cpu_metrics = self.get_server_metrics(app_id, server_id, "Server|*|CPU|*", duration_in_mins)
+            # Get CPU metrics using correct AppDynamics metric path
+            cpu_metrics = self.get_server_metrics(app_id, server_id, "Application Infrastructure Performance|Machine Agent|Hardware Resources|CPU|*", duration_in_mins)
             
-            # Get Memory metrics
-            memory_metrics = self.get_server_metrics(app_id, server_id, "Server|*|Memory|*", duration_in_mins)
+            # Get Memory metrics using correct AppDynamics metric path
+            memory_metrics = self.get_server_metrics(app_id, server_id, "Application Infrastructure Performance|Machine Agent|Hardware Resources|Memory|*", duration_in_mins)
             
-            # Get Disk metrics
-            disk_metrics = self.get_server_metrics(app_id, server_id, "Server|*|Disk|*", duration_in_mins)
+            # Get Disk metrics using correct AppDynamics metric path
+            disk_metrics = self.get_server_metrics(app_id, server_id, "Application Infrastructure Performance|Machine Agent|Hardware Resources|Disk|*", duration_in_mins)
             
-            # Get Network metrics
-            network_metrics = self.get_server_metrics(app_id, server_id, "Server|*|Network|*", duration_in_mins)
+            # Get Network metrics using correct AppDynamics metric path
+            network_metrics = self.get_server_metrics(app_id, server_id, "Application Infrastructure Performance|Machine Agent|Hardware Resources|Network|*", duration_in_mins)
             
             utilization = {
                 'cpu': self._extract_cpu_metrics(cpu_metrics),
@@ -231,64 +253,91 @@ class AppDynamicsClient:
             return {}
     
     def _extract_cpu_metrics(self, cpu_metrics: List[Dict]) -> Dict[str, Any]:
-        """Extract CPU metrics from raw data"""
+        """Extract CPU metrics from raw data using correct AppDynamics metric names"""
         cpu_data = {}
         for metric in cpu_metrics:
             metric_name = metric.get('metricName', '')
             metric_values = metric.get('metricValues', [])
             
-            if 'CPU Used %' in metric_name:
+            # Look for %busy (overall CPU usage)
+            if '%busy' in metric_name.lower():
                 cpu_data['usage_percent'] = self._get_latest_value(metric_values)
-            elif 'CPU System Time %' in metric_name:
+            # Look for %System (system CPU time)
+            elif '%system' in metric_name.lower():
                 cpu_data['system_time_percent'] = self._get_latest_value(metric_values)
-            elif 'CPU User Time %' in metric_name:
+            # Look for %User (user CPU time)
+            elif '%user' in metric_name.lower():
                 cpu_data['user_time_percent'] = self._get_latest_value(metric_values)
+            # Fallback for other CPU metrics
+            elif 'CPU' in metric_name and '%' in metric_name:
+                if 'usage_percent' not in cpu_data:  # Use first CPU percentage found as usage
+                    cpu_data['usage_percent'] = self._get_latest_value(metric_values)
         
         return cpu_data
     
     def _extract_memory_metrics(self, memory_metrics: List[Dict]) -> Dict[str, Any]:
-        """Extract Memory metrics from raw data"""
+        """Extract Memory metrics from raw data using correct AppDynamics metric names"""
         memory_data = {}
         for metric in memory_metrics:
             metric_name = metric.get('metricName', '')
             metric_values = metric.get('metricValues', [])
             
-            if 'Memory|Used' in metric_name:
-                memory_data['used_mb'] = self._get_latest_value(metric_values)
-            elif 'Memory|Free' in metric_name:
-                memory_data['free_mb'] = self._get_latest_value(metric_values)
-            elif 'Memory|Used %' in metric_name:
+            # Look for memory usage percentage
+            if 'used %' in metric_name.lower() or 'usage %' in metric_name.lower():
                 memory_data['usage_percent'] = self._get_latest_value(metric_values)
+            # Look for used memory in MB
+            elif 'used' in metric_name.lower() and 'mb' in metric_name.lower():
+                memory_data['used_mb'] = self._get_latest_value(metric_values)
+            # Look for free memory in MB
+            elif 'free' in metric_name.lower() and 'mb' in metric_name.lower():
+                memory_data['free_mb'] = self._get_latest_value(metric_values)
+            # Look for total memory
+            elif 'total' in metric_name.lower() and 'mb' in metric_name.lower():
+                memory_data['total_mb'] = self._get_latest_value(metric_values)
         
         return memory_data
     
     def _extract_disk_metrics(self, disk_metrics: List[Dict]) -> Dict[str, Any]:
-        """Extract Disk metrics from raw data"""
+        """Extract Disk metrics from raw data using correct AppDynamics metric names"""
         disk_data = {}
         for metric in disk_metrics:
             metric_name = metric.get('metricName', '')
             metric_values = metric.get('metricValues', [])
             
-            if 'Disk|Used' in metric_name:
-                disk_data['used_gb'] = self._get_latest_value(metric_values)
-            elif 'Disk|Free' in metric_name:
-                disk_data['free_gb'] = self._get_latest_value(metric_values)
-            elif 'Disk|Used %' in metric_name:
+            # Look for disk usage percentage
+            if 'used %' in metric_name.lower() or 'usage %' in metric_name.lower():
                 disk_data['usage_percent'] = self._get_latest_value(metric_values)
+            # Look for used disk space in GB
+            elif 'used' in metric_name.lower() and ('gb' in metric_name.lower() or 'gigabytes' in metric_name.lower()):
+                disk_data['used_gb'] = self._get_latest_value(metric_values)
+            # Look for free disk space in GB
+            elif 'free' in metric_name.lower() and ('gb' in metric_name.lower() or 'gigabytes' in metric_name.lower()):
+                disk_data['free_gb'] = self._get_latest_value(metric_values)
+            # Look for total disk space
+            elif 'total' in metric_name.lower() and ('gb' in metric_name.lower() or 'gigabytes' in metric_name.lower()):
+                disk_data['total_gb'] = self._get_latest_value(metric_values)
         
         return disk_data
     
     def _extract_network_metrics(self, network_metrics: List[Dict]) -> Dict[str, Any]:
-        """Extract Network metrics from raw data"""
+        """Extract Network metrics from raw data using correct AppDynamics metric names"""
         network_data = {}
         for metric in network_metrics:
             metric_name = metric.get('metricName', '')
             metric_values = metric.get('metricValues', [])
             
-            if 'Network|Bytes Received/sec' in metric_name:
+            # Look for bytes received per second
+            if 'received' in metric_name.lower() and ('bytes/sec' in metric_name.lower() or 'bytes per second' in metric_name.lower()):
                 network_data['bytes_received_per_sec'] = self._get_latest_value(metric_values)
-            elif 'Network|Bytes Transmitted/sec' in metric_name:
+            # Look for bytes transmitted per second
+            elif 'transmitted' in metric_name.lower() and ('bytes/sec' in metric_name.lower() or 'bytes per second' in metric_name.lower()):
                 network_data['bytes_transmitted_per_sec'] = self._get_latest_value(metric_values)
+            # Look for packets received per second
+            elif 'received' in metric_name.lower() and ('packets/sec' in metric_name.lower() or 'packets per second' in metric_name.lower()):
+                network_data['packets_received_per_sec'] = self._get_latest_value(metric_values)
+            # Look for packets transmitted per second
+            elif 'transmitted' in metric_name.lower() and ('packets/sec' in metric_name.lower() or 'packets per second' in metric_name.lower()):
+                network_data['packets_transmitted_per_sec'] = self._get_latest_value(metric_values)
         
         return network_data
     

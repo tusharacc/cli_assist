@@ -353,3 +353,91 @@ The codebase now features:
 - ✅ **Jupyter notebook support** and data science workflows
 
 The Lumos CLI is now a sophisticated, AI-powered tool with advanced natural language processing capabilities, making complex enterprise operations accessible through simple conversations. It can now handle cross-language code generation, understand complex repository structures, and support data science workflows with multiple interconnected files.
+
+## Latest Session Updates (Current)
+
+### 11. Interactive Mode Intent Detection Issue (Bug Fix)
+- **Problem**: Interactive mode incorrectly maps "analyze" to "review" intent, causing deprecated command warnings
+- **Root Cause**: Intent detection patterns in `src/lumos_cli/interactive/intent_detection.py` line 81
+- **Issue**: `review_patterns = [r'\b(review|analyze|inspect|examine|check)\b']` catches "analyze" as review
+- **Impact**: Users get "review is deprecated use /code review instead" and "unknown action review" errors
+- **Status**: 🔍 **Identified and documented** - needs fix
+
+### 12. Repository Analysis Command Usage Clarification (Documentation)
+- **Problem**: User confusion about correct commands for repository analysis
+- **Clarification**: 
+  - `/code analyze` expects file paths, not directories or natural language
+  - `/code generate` creates code (including analysis code), doesn't display results directly
+  - Interactive mode has intent detection issues with "analyze" keyword
+- **Solutions Provided**:
+  - Use explicit commands: `/code generate create a comprehensive analysis...`
+  - Use different wording: "examine" or "inspect" instead of "analyze"
+  - Use direct router calls for immediate analysis output
+- **Status**: ✅ **Documented and explained**
+
+### 13. Enterprise LLM Priority Configuration (Enhancement)
+- **Problem**: Enterprise LLM shows as available but isn't used by `/code generate`
+- **Root Cause**: LLM router priority: Ollama > Enterprise LLM > OpenAI
+- **Current Behavior**: If Ollama is available, it's chosen over Enterprise LLM
+- **Solution Options**:
+  - Modify router priority in `src/lumos_cli/core/router.py`
+  - Force backend selection with explicit parameters
+  - Accept current behavior as intended design
+- **Status**: 🔍 **Identified and documented** - user choice needed
+
+## Current To-Dos and Next Steps
+
+### 🔧 **Immediate Fixes Needed**
+1. **Fix Intent Detection Issue** (High Priority)
+   - File: `src/lumos_cli/interactive/intent_detection.py`
+   - Change line 81: Remove "analyze" from review patterns
+   - Test: `lumos-cli` → "analyze the repository" should work correctly
+
+2. **Clarify Enterprise LLM Usage** (Medium Priority)
+   - Decide on router priority behavior
+   - Either modify priority or document current behavior clearly
+   - Consider adding backend selection options to commands
+
+### 📚 **Documentation Updates Needed**
+1. **Interactive Mode Commands**
+   - Document correct usage patterns for repository analysis
+   - Add examples of working commands vs. problematic ones
+   - Update help text to clarify intent detection behavior
+
+2. **Repository Analysis Guide**
+   - Create comprehensive guide for different analysis approaches
+   - Document file vs. directory analysis limitations
+   - Add examples of effective repository understanding commands
+
+### 🧪 **Testing Needed**
+1. **Intent Detection Tests**
+   - Test all intent patterns to ensure correct mapping
+   - Verify "analyze" doesn't trigger "review" intent
+   - Test edge cases in natural language processing
+
+2. **Repository Analysis Tests**
+   - Test various repository analysis commands
+   - Verify file vs. directory handling
+   - Test cross-language analysis capabilities
+
+### 🚀 **Enhancement Opportunities**
+1. **Repository Analysis Improvements**
+   - Add direct repository analysis command (not just file-based)
+   - Implement directory analysis capabilities
+   - Add real-time analysis output (not just code generation)
+
+2. **Interactive Mode Enhancements**
+   - Improve intent detection accuracy
+   - Add better error messages for common issues
+   - Implement command suggestions for failed attempts
+
+## Session Statistics (Updated)
+- **Duration**: Multiple hours of advanced feature development
+- **Files created/modified**: 25+ files
+- **New features implemented**: 10 major features
+- **Tests created**: 10+ new test files
+- **Documentation updated**: 6 major documents
+- **Git commits**: 18+ commits with detailed messages
+- **Latest session**: OpenAI configuration fix, code generation enhancement, repository understanding, Jupyter notebook support, intent detection issue identification
+- **Current issues**: 2 identified (intent detection, Enterprise LLM priority)
+- **Status**: 🔍 **Active development** with identified issues to resolve
